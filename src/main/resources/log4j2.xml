@@ -2,7 +2,16 @@
 <Configuration status="WARN">
     <Appenders>
         <Console name="Console" target="SYSTEM_OUT">
-            <PatternLayout pattern="[%d{HH:mm:ss} %level]: [%logger] %replace{%msg}{\r?\n}{&#xA;&#x9;&#x9;}%n%xEx{full}" />
+            <PatternLayout>
+                <Pattern>
+                    %highlight{[%d{HH:mm:ss} %level]: [%logger] %replace{%msg}{\r?\n}{&#xA;&#x9;&#x9;}%n%xEx{full}}{
+                    DEBUG=white,
+                    INFO=normal,
+                    WARN=bright_yellow,
+                    ERROR=bright_red
+                    }
+                </Pattern>
+            </PatternLayout>
         </Console>
 
         <RollingFile name="File"

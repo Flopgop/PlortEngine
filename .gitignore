@@ -8,8 +8,6 @@ build/
 ### misc stuffs ###
 hs_err_*.log
 logs/
-test.glb
-survival_guitar_backpack.glb
 
 ### IntelliJ IDEA ###
 .idea/modules.xml

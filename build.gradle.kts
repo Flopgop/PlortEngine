@@ -5,13 +5,14 @@ plugins {
 group = "net.flamgop"
 version = "1.0-SNAPSHOT"
 
-val lwjglVersion = "3.3.6"
+val lwjglVersion = "3.4.0-SNAPSHOT"
 val jomlPrimitivesVersion = "1.10.0"
 val jomlVersion = "1.10.8"
 val lwjglNatives = "natives-windows"
 
 repositories {
     mavenCentral()
+    maven("https://central.sonatype.com/repository/maven-snapshots")
 }
 
 dependencies {
@@ -49,5 +50,5 @@ dependencies {
     implementation("org.apache.logging.log4j:log4j-core:2.25.1")
     implementation("org.apache.logging.log4j:log4j-slf4j2-impl:2.25.1")
 
-
+    implementation("de.javagl:jgltf-model:2.0.4")
 }
