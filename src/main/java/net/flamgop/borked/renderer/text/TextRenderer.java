@@ -1,7 +1,9 @@
 package net.flamgop.borked.renderer.text;
 
-import net.flamgop.borked.renderer.PlortBufferedDescriptorSetPool;
+import net.flamgop.borked.renderer.descriptor.PlortBufferedDescriptorSetPool;
 import net.flamgop.borked.renderer.PlortDevice;
+import net.flamgop.borked.renderer.descriptor.PlortDescriptor;
+import net.flamgop.borked.renderer.descriptor.PlortDescriptorSetLayout;
 import net.flamgop.borked.renderer.renderpass.PlortRenderPass;
 import net.flamgop.borked.renderer.memory.TrackedCloseable;
 import net.flamgop.borked.renderer.memory.PlortBuffer;
@@ -29,6 +31,7 @@ public class TextRenderer extends TrackedCloseable {
 
     private final PlortSwapchain swapchain;
     private final PlortDevice device;
+    private final PlortDescriptorSetLayout layout;
     private final PlortBufferedDescriptorSetPool pool;
     private final PlortShaderModule shaderModule;
     private final PlortPipeline pipeline;
@@ -37,11 +40,12 @@ public class TextRenderer extends TrackedCloseable {
         super();
         this.device = device;
         this.swapchain = swapchain;
-        PlortDescriptorSet descriptorSet = new PlortDescriptorSet(
+        this.layout = new PlortDescriptorSetLayout(
+                device,
                 new PlortDescriptor(PlortDescriptor.Type.STORAGE_BUFFER, 1, PlortShaderStage.Stage.FRAGMENT.bit()),
                 new PlortDescriptor(PlortDescriptor.Type.COMBINED_IMAGE_SAMPLER, 1, PlortShaderStage.Stage.FRAGMENT.bit())
         );
-        this.pool = new PlortBufferedDescriptorSetPool(device, descriptorSet, 1, maxFramesInFlight);
+        this.pool = new PlortBufferedDescriptorSetPool(device, layout, 1, maxFramesInFlight);
         pool.label("Text Buffered Descriptor Pool");
         ByteBuffer textShader = ResourceHelper.loadFromResource("assets/shaders/text.spv");
         this.shaderModule = new PlortShaderModule(device, textShader);
@@ -52,7 +56,7 @@ public class TextRenderer extends TrackedCloseable {
                 .shaderStage(new PlortShaderStage(PlortShaderStage.Stage.MESH, shaderModule, "meshMain"))
                 .shaderStage(new PlortShaderStage(PlortShaderStage.Stage.FRAGMENT, shaderModule, "fragmentMain"))
                 .pushConstant(new PlortPushConstant(0, STRING_DATA_BYTES, PlortShaderStage.Stage.MESH.bit()))
-                .descriptorSetPool(pool.pool())
+                .descriptorSetLayouts(layout)
                 .blendState(PlortBlendState.alphaBlend())
                 .depthStencilStateInfo(new PlortDepthStencilState(
                         false, false, CompareOp.LESS, false, false, new PlortDepthStencilState.StencilOpState(), new PlortDepthStencilState.StencilOpState(), 0, 0
@@ -120,8 +124,9 @@ public class TextRenderer extends TrackedCloseable {
     @Override
     public void close() {
         pipeline.close();
-        shaderModule.close();
         pool.close();
+        layout.close();
+        shaderModule.close();
         super.close();
     }
 }

@@ -1,9 +1,7 @@
 package net.flamgop.borked;
 
-import net.flamgop.borked.renderer.PlortBufferedDescriptorSetPool;
+import net.flamgop.borked.renderer.descriptor.*;
 import net.flamgop.borked.renderer.PlortEngine;
-import net.flamgop.borked.renderer.descriptor.BufferDescriptorWrite;
-import net.flamgop.borked.renderer.descriptor.TextureDescriptorWrite;
 import net.flamgop.borked.renderer.model.PlortModel;
 import net.flamgop.borked.renderer.renderpass.*;
 import net.flamgop.borked.renderer.image.*;
@@ -49,6 +47,7 @@ public class Game {
     private final GBuffer gbuffer;
 
     private final PlortShaderModule meshModule;
+    private final PlortDescriptorSetLayout meshLayout;
     private final PlortBufferedDescriptorSetPool meshDescriptors;
     private final PlortPipeline meshPipeline;
 
@@ -56,6 +55,7 @@ public class Game {
 
     private PlortTexture ssaoTexture;
     private final PlortShaderModule ssaoModule;
+    private final PlortDescriptorSetLayout ssaoLayout;
     private final PlortBufferedDescriptorSetPool ssaoDescriptors;
     private final PlortPipeline ssaoPipeline;
 
@@ -140,18 +140,19 @@ public class Game {
         meshModule.label("Mesh");
         MemoryUtil.memFree(shaderCode);
 
-        PlortDescriptorSet descriptorSet = new PlortDescriptorSet(
+        this.meshLayout = new PlortDescriptorSetLayout(
+                engine.device(),
                 new PlortDescriptor(PlortDescriptor.Type.UNIFORM_BUFFER, 1, PlortShaderStage.Stage.ALL.bit()),
                 new PlortDescriptor(PlortDescriptor.Type.COMBINED_IMAGE_SAMPLER, 1, PlortShaderStage.Stage.FRAGMENT.bit()),
                 new PlortDescriptor(PlortDescriptor.Type.COMBINED_IMAGE_SAMPLER, 1, PlortShaderStage.Stage.FRAGMENT.bit())
         );
-        this.meshDescriptors = new PlortBufferedDescriptorSetPool(engine.device(), descriptorSet, 1, engine.swapchain().imageCount());
+        this.meshDescriptors = new PlortBufferedDescriptorSetPool(engine.device(), meshLayout, 1, engine.swapchain().imageCount());
 
         this.meshPipeline = PlortPipeline.builder(engine.device(), gbuffer.renderPass())
                 .shaderStage(new PlortShaderStage(PlortShaderStage.Stage.MESH, meshModule, "meshMain"))
                 .shaderStage(new PlortShaderStage(PlortShaderStage.Stage.FRAGMENT, meshModule, "fragmentMain"))
                 .pushConstant(new PlortPushConstant(0, 4 * Long.BYTES, PlortShaderStage.Stage.ALL.bit()))
-                .descriptorSetPool(meshDescriptors.pool())
+                .descriptorSetLayouts(meshLayout)
                 .blendState(PlortBlendState.disabled())
                 .blendState(PlortBlendState.disabled())
                 .blendState(PlortBlendState.disabled())
@@ -173,18 +174,19 @@ public class Game {
         ssaoModule.label("SSAO");
         MemoryUtil.memFree(ssaoCode);
 
-        PlortDescriptorSet ssaoDescriptorSet = new PlortDescriptorSet(
+        this.ssaoLayout = new PlortDescriptorSetLayout(
+                engine.device(),
                 new PlortDescriptor(PlortDescriptor.Type.COMBINED_IMAGE_SAMPLER, 1, PlortShaderStage.Stage.COMPUTE.bit()),
                 new PlortDescriptor(PlortDescriptor.Type.COMBINED_IMAGE_SAMPLER, 1, PlortShaderStage.Stage.COMPUTE.bit()),
                 new PlortDescriptor(PlortDescriptor.Type.COMBINED_IMAGE_SAMPLER, 1, PlortShaderStage.Stage.COMPUTE.bit()),
                 new PlortDescriptor(PlortDescriptor.Type.UNIFORM_BUFFER, 1, PlortShaderStage.Stage.COMPUTE.bit()),
                 new PlortDescriptor(PlortDescriptor.Type.STORAGE_IMAGE, 1, PlortShaderStage.Stage.COMPUTE.bit())
         );
-        this.ssaoDescriptors = new PlortBufferedDescriptorSetPool(engine.device(), ssaoDescriptorSet, 1, engine.swapchain().imageCount());
+        this.ssaoDescriptors = new PlortBufferedDescriptorSetPool(engine.device(), ssaoLayout, 1, engine.swapchain().imageCount());
 
         this.ssaoPipeline = PlortPipeline.builder(engine.device())
                 .shaderStage(new PlortShaderStage(PlortShaderStage.Stage.COMPUTE, ssaoModule, "main"))
-                .descriptorSetPool(ssaoDescriptors.pool())
+                .descriptorSetLayouts(ssaoLayout)
                 .buildCompute();
 
         this.ssaoTexture = new PlortTexture(
@@ -254,7 +256,7 @@ public class Game {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             meshPipeline.bind(cmdBuffer, PipelineBindPoint.GRAPHICS);
 
-            double time = GLFW.glfwGetTime();
+            double time = (GLFW.glfwGetTime() % Math.TAU);
             entities.getFirst().rotation(new Quaternionf(0, Math.sin(time / 2), 0, Math.cos(time / 2)).normalize());
             entities.forEach(e -> e.submit(cmdBuffer, meshPipeline, currentFrameModInFlight));
         }
@@ -424,11 +426,13 @@ public class Game {
         cameraController.close();
 
         meshPipeline.close();
+        meshLayout.close();
         meshDescriptors.close();
         meshModule.close();
 
         ssaoTexture.close();
         ssaoPipeline.close();
+        ssaoLayout.close();
         ssaoDescriptors.close();
         ssaoModule.close();
 

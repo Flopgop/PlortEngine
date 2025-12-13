@@ -1,7 +1,9 @@
 package net.flamgop.borked.renderer.model;
 
-import net.flamgop.borked.renderer.PlortBufferedDescriptorSetPool;
+import net.flamgop.borked.renderer.descriptor.PlortBufferedDescriptorSetPool;
 import net.flamgop.borked.renderer.PlortEngine;
+import net.flamgop.borked.renderer.descriptor.PlortDescriptor;
+import net.flamgop.borked.renderer.descriptor.PlortDescriptorSetLayout;
 import net.flamgop.borked.renderer.image.PlortImage;
 import net.flamgop.borked.renderer.material.PlortTexture;
 import net.flamgop.borked.renderer.memory.PlortBuffer;
@@ -39,6 +41,7 @@ public class PlortModel implements AutoCloseable {
 
     private final int materialCount;
 
+    private final PlortDescriptorSetLayout layout;
     private final PlortBufferedDescriptorSetPool descriptorSets;
 
     public static void closeNulls() {
@@ -71,12 +74,13 @@ public class PlortModel implements AutoCloseable {
         if (scene.mMeshes() == null) throw new NullPointerException("No meshes in scene");
         if (scene.mTextures() == null) throw new NullPointerException("No textures in scene");
 
-        PlortDescriptorSet descriptorSet = new PlortDescriptorSet(
+        this.layout = new PlortDescriptorSetLayout(
+                engine.device(),
                 new PlortDescriptor(PlortDescriptor.Type.UNIFORM_BUFFER, 1, PlortShaderStage.Stage.ALL.bit()),
                 new PlortDescriptor(PlortDescriptor.Type.COMBINED_IMAGE_SAMPLER, 1, PlortShaderStage.Stage.FRAGMENT.bit()),
                 new PlortDescriptor(PlortDescriptor.Type.COMBINED_IMAGE_SAMPLER, 1, PlortShaderStage.Stage.FRAGMENT.bit())
         );
-        this.descriptorSets = new PlortBufferedDescriptorSetPool(engine.device(), descriptorSet, scene.mNumMaterials(), engine.swapchain().imageCount());
+        this.descriptorSets = new PlortBufferedDescriptorSetPool(engine.device(), layout, scene.mNumMaterials(), engine.swapchain().imageCount());
         materialCount = scene.mNumMaterials();
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
@@ -224,6 +228,7 @@ public class PlortModel implements AutoCloseable {
     @Override
     public void close() {
         descriptorSets.close();
+        layout.close();
         meshes.forEach(PlortMesh::close);
         textures.forEach(PlortTexture::close);
     }

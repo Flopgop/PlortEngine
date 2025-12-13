@@ -1,4 +1,4 @@
-package net.flamgop.borked.renderer.pipeline;
+package net.flamgop.borked.renderer.descriptor;
 
 import net.flamgop.borked.renderer.PlortDevice;
 import net.flamgop.borked.renderer.memory.TrackedCloseable;
@@ -14,39 +14,22 @@ import static org.lwjgl.vulkan.VK14.*;
 
 public class PlortDescriptorSetPool extends TrackedCloseable {
     private final PlortDevice device;
+    private final PlortDescriptorSetLayout[] layouts;
     private final long handle;
-    private final long[] layouts, sets;
+    private final long[] sets;
 
     @SuppressWarnings("resource")
-    public PlortDescriptorSetPool(PlortDevice device, List<PlortDescriptorSet> descriptorSets) {
+    public PlortDescriptorSetPool(PlortDevice device, PlortDescriptorSetLayout... layouts) {
         super();
         this.device = device;
-        this.layouts = new long[descriptorSets.size()];
+        this.layouts = layouts;
         try (MemoryStack stack = MemoryStack.stackPush()) {
             LongBuffer pOut = stack.callocLong(1);
 
-            Map<Integer, Integer> typeCounts = new HashMap<>();
-            for (int i = 0; i < descriptorSets.size(); i++) {
-                PlortDescriptorSet descriptorSet = descriptorSets.get(i);
-                try (MemoryStack stack1 = MemoryStack.stackPush()) {
-                    VkDescriptorSetLayoutBinding.Buffer bindings = VkDescriptorSetLayoutBinding.calloc(descriptorSet.descriptors().length, stack1);
-                    for (int j = 0; j < descriptorSet.descriptors().length; j++) {
-                        PlortDescriptor descriptor = descriptorSet.descriptors()[j];
-                        int type = descriptor.type().qualifier();
-                        typeCounts.merge(type, descriptor.count(), Integer::sum);
-                        bindings.get(j)
-                                .binding(j)
-                                .descriptorType(descriptor.type().qualifier())
-                                .descriptorCount(descriptor.count())
-                                .stageFlags(descriptor.stageFlags());
-                    }
-
-                    VkDescriptorSetLayoutCreateInfo layoutInfo = VkDescriptorSetLayoutCreateInfo.calloc(stack1)
-                            .sType$Default()
-                            .pBindings(bindings);
-
-                    VkUtil.check(vkCreateDescriptorSetLayout(device.handle(), layoutInfo, null, pOut));
-                    this.layouts[i] = pOut.get(0);
+            Map<PlortDescriptor.Type, Integer> typeCounts = new HashMap<>();
+            for (PlortDescriptorSetLayout layout : layouts) {
+                for (var entry : layout.descriptorCounts().entrySet()) {
+                    typeCounts.merge(entry.getKey(), entry.getValue(), Integer::sum);
                 }
             }
 
@@ -54,14 +37,14 @@ public class PlortDescriptorSetPool extends TrackedCloseable {
             int idx = 0;
             for (var entry : typeCounts.entrySet()) {
                 poolSizes.get(idx++)
-                        .type(entry.getKey())
+                        .type(entry.getKey().qualifier())
                         .descriptorCount(entry.getValue());
             }
 
             VkDescriptorPoolCreateInfo poolInfo = VkDescriptorPoolCreateInfo.calloc(stack)
                     .sType$Default()
                     .pPoolSizes(poolSizes)
-                    .maxSets(descriptorSets.size());
+                    .maxSets(layouts.length);
 
             VkUtil.check(vkCreateDescriptorPool(device.handle(), poolInfo, null, pOut));
             this.handle = pOut.get(0);
@@ -69,12 +52,12 @@ public class PlortDescriptorSetPool extends TrackedCloseable {
             VkDescriptorSetAllocateInfo allocInfo = VkDescriptorSetAllocateInfo.calloc(stack)
                     .sType$Default()
                     .descriptorPool(this.handle)
-                    .pSetLayouts(stack.longs(this.layouts));
+                    .pSetLayouts(stack.longs(Arrays.stream(this.layouts).mapToLong(PlortDescriptorSetLayout::handle).toArray()));
 
-            this.sets = new long[descriptorSets.size()];
-            LongBuffer pDescriptorSets = stack.callocLong(descriptorSets.size());
+            this.sets = new long[layouts.length];
+            LongBuffer pDescriptorSets = stack.callocLong(layouts.length);
             VkUtil.check(vkAllocateDescriptorSets(device.handle(), allocInfo, pDescriptorSets));
-            for (int i = 0; i < descriptorSets.size(); i++) this.sets[i] = pDescriptorSets.get(i);
+            for (int i = 0; i < layouts.length; i++) this.sets[i] = pDescriptorSets.get(i);
         }
     }
 
@@ -94,7 +77,7 @@ public class PlortDescriptorSetPool extends TrackedCloseable {
         return handle;
     }
 
-    public long[] layouts() {
+    public PlortDescriptorSetLayout[] layouts() {
         return layouts.clone();
     }
 
@@ -112,7 +95,6 @@ public class PlortDescriptorSetPool extends TrackedCloseable {
 
     @Override
     public void close() {
-        for (long layout : layouts) vkDestroyDescriptorSetLayout(device.handle(), layout, null);
         vkDestroyDescriptorPool(device.handle(), handle, null);
         super.close();
     }

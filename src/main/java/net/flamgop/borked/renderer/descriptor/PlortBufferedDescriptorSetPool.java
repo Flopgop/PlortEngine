@@ -1,12 +1,9 @@
-package net.flamgop.borked.renderer;
+package net.flamgop.borked.renderer.descriptor;
 
+import net.flamgop.borked.renderer.PlortDevice;
 import net.flamgop.borked.renderer.memory.TrackedCloseable;
-import net.flamgop.borked.renderer.pipeline.PlortDescriptorSet;
-import net.flamgop.borked.renderer.pipeline.PlortDescriptorSetPool;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 
 public class PlortBufferedDescriptorSetPool extends TrackedCloseable {
 
@@ -16,13 +13,13 @@ public class PlortBufferedDescriptorSetPool extends TrackedCloseable {
     private final int frameCount;
     private int frame;
 
-    public PlortBufferedDescriptorSetPool(PlortDevice device, PlortDescriptorSet set, int setCount, int bufferedCount) {
+    public PlortBufferedDescriptorSetPool(PlortDevice device, PlortDescriptorSetLayout layout, int setCount, int bufferedCount) {
         super();
         this.setCount = setCount;
-        List<PlortDescriptorSet> realSets = new ArrayList<>();
+        PlortDescriptorSetLayout[] realSets = new PlortDescriptorSetLayout[bufferedCount * setCount];
         for (int i = 0; i < bufferedCount; i++) {
             for (int j = 0; j < setCount; j++) {
-                realSets.add(set);
+                realSets[i * setCount + j] = layout;
             }
         }
         this.frameCount = bufferedCount;

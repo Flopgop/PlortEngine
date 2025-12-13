@@ -1,6 +1,7 @@
 package net.flamgop.borked.renderer.pipeline;
 
 import net.flamgop.borked.renderer.PlortDevice;
+import net.flamgop.borked.renderer.descriptor.PlortDescriptorSetLayout;
 import net.flamgop.borked.renderer.renderpass.PlortRenderPass;
 import net.flamgop.borked.renderer.memory.TrackedCloseable;
 import net.flamgop.borked.renderer.util.VkUtil;
@@ -9,6 +10,7 @@ import org.lwjgl.vulkan.*;
 
 import java.nio.LongBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.lwjgl.vulkan.EXTDebugUtils.vkSetDebugUtilsObjectNameEXT;
@@ -38,7 +40,7 @@ public class PlortPipeline extends TrackedCloseable {
         private PlortDepthStencilState depthState = new PlortDepthStencilState();
         private PlortRasterizationState rasterizationState = new PlortRasterizationState();
 
-        private long[] descriptorSetLayouts = null;
+        private PlortDescriptorSetLayout[] descriptorSetLayouts = null;
 
         Builder(PlortDevice device, PlortRenderPass renderPass) {
             this.device = device;
@@ -50,12 +52,7 @@ public class PlortPipeline extends TrackedCloseable {
             this.renderPass = null;
         }
 
-        public Builder descriptorSetPool(PlortDescriptorSetPool descriptorSetPool) {
-            this.descriptorSetLayouts = descriptorSetPool.layouts();
-            return this;
-        }
-
-        public Builder descriptorSetLayouts(long... layouts) {
+        public Builder descriptorSetLayouts(PlortDescriptorSetLayout... layouts) {
             this.descriptorSetLayouts = layouts;
             return this;
         }
@@ -103,7 +100,7 @@ public class PlortPipeline extends TrackedCloseable {
     }
 
     @SuppressWarnings("resource")
-    public PlortPipeline(PlortDevice device, PlortShaderStage shaderStage, List<PlortPushConstant> pushConstants, long[] descriptorSetLayouts) {
+    public PlortPipeline(PlortDevice device, PlortShaderStage shaderStage, List<PlortPushConstant> pushConstants, PlortDescriptorSetLayout[] descriptorSetLayouts) {
         this.device = device;
         try (MemoryStack stack = MemoryStack.stackPush()) {
             LongBuffer pOut = stack.callocLong(1);
@@ -125,7 +122,7 @@ public class PlortPipeline extends TrackedCloseable {
 
             VkPipelineLayoutCreateInfo pipelineLayoutInfo = VkPipelineLayoutCreateInfo.calloc(stack)
                     .sType$Default()
-                    .pSetLayouts(stack.longs(descriptorSetLayouts))
+                    .pSetLayouts(stack.longs(Arrays.stream(descriptorSetLayouts).mapToLong(PlortDescriptorSetLayout::handle).toArray()))
                     .pPushConstantRanges(!pushConstants.isEmpty() ? pushConstantBuffer : null);
 
             VkUtil.check(vkCreatePipelineLayout(device.handle(), pipelineLayoutInfo, null, pOut));
@@ -141,8 +138,8 @@ public class PlortPipeline extends TrackedCloseable {
         }
     }
 
-    @SuppressWarnings({"resource"})
-    public PlortPipeline(PlortDevice device, PlortRenderPass renderPass, List<PlortShaderStage> shaderStages, List<PlortPushConstant> pushConstants, PlortRasterizationState rasterizationState, long[] descriptorSetLayouts, List<PlortBlendState> blendStates, PlortDepthStencilState depthState) {
+    @SuppressWarnings("resource")
+    public PlortPipeline(PlortDevice device, PlortRenderPass renderPass, List<PlortShaderStage> shaderStages, List<PlortPushConstant> pushConstants, PlortRasterizationState rasterizationState, PlortDescriptorSetLayout[] descriptorSetLayouts, List<PlortBlendState> blendStates, PlortDepthStencilState depthState) {
         super();
 
         if (shaderStages.stream().anyMatch(s -> s.stage() == PlortShaderStage.Stage.COMPUTE)) {
@@ -173,7 +170,7 @@ public class PlortPipeline extends TrackedCloseable {
 
             VkPipelineLayoutCreateInfo pipelineLayoutInfo = VkPipelineLayoutCreateInfo.calloc(stack)
                     .sType$Default()
-                    .pSetLayouts(stack.longs(descriptorSetLayouts))
+                    .pSetLayouts(stack.longs(Arrays.stream(descriptorSetLayouts).mapToLong(PlortDescriptorSetLayout::handle).toArray()))
                     .pPushConstantRanges(!pushConstants.isEmpty() ? pushConstantBuffer : null);
 
             VkUtil.check(vkCreatePipelineLayout(device.handle(), pipelineLayoutInfo, null, pOut));

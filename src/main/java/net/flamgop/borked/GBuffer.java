@@ -1,7 +1,9 @@
 package net.flamgop.borked;
 
-import net.flamgop.borked.renderer.PlortBufferedDescriptorSetPool;
+import net.flamgop.borked.renderer.descriptor.PlortBufferedDescriptorSetPool;
 import net.flamgop.borked.renderer.PlortEngine;
+import net.flamgop.borked.renderer.descriptor.PlortDescriptor;
+import net.flamgop.borked.renderer.descriptor.PlortDescriptorSetLayout;
 import net.flamgop.borked.renderer.image.*;
 import net.flamgop.borked.renderer.material.PlortTexture;
 import net.flamgop.borked.renderer.memory.MemoryUsage;
@@ -24,6 +26,7 @@ import static org.lwjgl.vulkan.VK10.VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
 public class GBuffer implements AutoCloseable {
     private final PlortSampler gbufferSampler;
     private final PlortShaderModule gbufferModule;
+    private final PlortDescriptorSetLayout gbufferLayout;
     private final PlortBufferedDescriptorSetPool gbufferDescriptors;
     private final PlortPipeline gbufferPipeline;
 
@@ -175,7 +178,8 @@ public class GBuffer implements AutoCloseable {
         gbufferModule.label("G-Buffer");
         MemoryUtil.memFree(gbufferCode);
 
-        PlortDescriptorSet gbufferDescriptorSet = new PlortDescriptorSet(
+        this.gbufferLayout = new PlortDescriptorSetLayout(
+                engine.device(),
                 new PlortDescriptor(PlortDescriptor.Type.COMBINED_IMAGE_SAMPLER, 1, PlortShaderStage.Stage.FRAGMENT.bit()),
                 new PlortDescriptor(PlortDescriptor.Type.COMBINED_IMAGE_SAMPLER, 1, PlortShaderStage.Stage.FRAGMENT.bit()),
                 new PlortDescriptor(PlortDescriptor.Type.COMBINED_IMAGE_SAMPLER, 1, PlortShaderStage.Stage.FRAGMENT.bit()),
@@ -185,12 +189,12 @@ public class GBuffer implements AutoCloseable {
                 new PlortDescriptor(PlortDescriptor.Type.UNIFORM_BUFFER, 1, PlortShaderStage.Stage.FRAGMENT.bit()),
                 new PlortDescriptor(PlortDescriptor.Type.UNIFORM_BUFFER, 1, PlortShaderStage.Stage.FRAGMENT.bit())
         );
-        this.gbufferDescriptors = new PlortBufferedDescriptorSetPool(engine.device(), gbufferDescriptorSet, 1, engine.swapchain().imageCount());
+        this.gbufferDescriptors = new PlortBufferedDescriptorSetPool(engine.device(), gbufferLayout, 1, engine.swapchain().imageCount());
 
         this.gbufferPipeline = PlortPipeline.builder(engine.device(), mainRenderPass)
                 .shaderStage(new PlortShaderStage(PlortShaderStage.Stage.MESH, gbufferModule, "meshMain"))
                 .shaderStage(new PlortShaderStage(PlortShaderStage.Stage.FRAGMENT, gbufferModule, "fragmentMain"))
-                .descriptorSetPool(gbufferDescriptors.pool())
+                .descriptorSetLayouts(gbufferLayout)
                 .blendState(PlortBlendState.disabled())
                 .buildGraphics();
     }
@@ -340,6 +344,7 @@ public class GBuffer implements AutoCloseable {
     public void close() {
         gbufferPipeline.close();
         gbufferDescriptors.close();
+        gbufferLayout.close();
         gbufferModule.close();
         gbufferSampler.close();
         gbufferRenderPass.close();

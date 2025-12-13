@@ -1,7 +1,6 @@
 package net.flamgop.borked.renderer.descriptor;
 
 import net.flamgop.borked.renderer.memory.PlortBuffer;
-import net.flamgop.borked.renderer.pipeline.PlortDescriptor;
 
 import java.util.List;
 

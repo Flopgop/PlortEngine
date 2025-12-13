@@ -3,7 +3,6 @@ package net.flamgop.borked.renderer.descriptor;
 import net.flamgop.borked.renderer.image.PlortImage;
 import net.flamgop.borked.renderer.image.PlortSampler;
 import net.flamgop.borked.renderer.material.PlortTexture;
-import net.flamgop.borked.renderer.pipeline.PlortDescriptor;
 
 import java.util.ArrayList;
 import java.util.List;

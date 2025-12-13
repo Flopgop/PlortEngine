@@ -1,4 +1,4 @@
-package net.flamgop.borked.renderer.pipeline;
+package net.flamgop.borked.renderer.descriptor;
 
 import static org.lwjgl.vulkan.EXTMutableDescriptorType.*;
 import static org.lwjgl.vulkan.QCOMImageProcessing.*;
