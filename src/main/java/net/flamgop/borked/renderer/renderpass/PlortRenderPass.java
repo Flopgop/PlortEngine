@@ -2,6 +2,8 @@ package net.flamgop.borked.renderer.renderpass;
 
 import net.flamgop.borked.renderer.PlortDevice;
 import net.flamgop.borked.renderer.memory.TrackedCloseable;
+import net.flamgop.borked.renderer.pipeline.PipelineBindPoint;
+import net.flamgop.borked.renderer.pipeline.PipelineStage;
 import net.flamgop.borked.renderer.util.VkUtil;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
@@ -60,7 +62,7 @@ public class PlortRenderPass extends TrackedCloseable {
                     .layout(depthReference.layout().qualifier());
 
             VkSubpassDescription.Buffer subpass = VkSubpassDescription.calloc(1, stack)
-                    .pipelineBindPoint(VK_PIPELINE_BIND_POINT_GRAPHICS)
+                    .pipelineBindPoint(PipelineBindPoint.GRAPHICS.qualifier())
                     .colorAttachmentCount(colorReferences.size())
                     .pColorAttachments(colorRefs)
                     .pDepthStencilAttachment(depthRef);
@@ -68,9 +70,9 @@ public class PlortRenderPass extends TrackedCloseable {
             VkSubpassDependency.Buffer dependency = VkSubpassDependency.calloc(1, stack)
                     .srcSubpass(VK_SUBPASS_EXTERNAL)
                     .dstSubpass(0)
-                    .srcStageMask(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT)
+                    .srcStageMask(PipelineStage.COLOR_ATTACHMENT_OUTPUT_BIT | PipelineStage.EARLY_FRAGMENT_TESTS_BIT)
                     .srcAccessMask(0)
-                    .dstStageMask(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT)
+                    .dstStageMask(PipelineStage.COLOR_ATTACHMENT_OUTPUT_BIT | PipelineStage.EARLY_FRAGMENT_TESTS_BIT)
                     .dstAccessMask(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
 
             VkRenderPassCreateInfo renderPassInfo = VkRenderPassCreateInfo.calloc(stack)

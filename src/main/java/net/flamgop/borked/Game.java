@@ -197,7 +197,7 @@ public class Game {
                         new Vector3i(engine.swapchain().extent().x(), engine.swapchain().extent().y(), 1),
                         1, 1, ImageFormat.R8_UNORM,
                         PlortImage.Layout.UNDEFINED,
-                        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 1,
+                        ImageUsage.STORAGE_BIT | ImageUsage.SAMPLED_BIT, 1,
                         SharingMode.EXCLUSIVE,
                         MemoryUsage.GPU_ONLY,
                         PlortImage.ViewType.TYPE_2D,
@@ -300,7 +300,7 @@ public class Game {
             ssaoTexture.image().transitionLayout(
                     cmdBuffer,
                     PlortImage.Layout.UNDEFINED, PlortImage.Layout.GENERAL,
-                    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                    PipelineStage.TOP_OF_PIPE_BIT, PipelineStage.COMPUTE_SHADER_BIT,
                     VK_ACCESS_NONE, VK_ACCESS_SHADER_WRITE_BIT
             );
 
@@ -314,7 +314,7 @@ public class Game {
             ssaoTexture.image().transitionLayout(
                     cmdBuffer,
                     PlortImage.Layout.GENERAL, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL,
-                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    PipelineStage.COMPUTE_SHADER_BIT, PipelineStage.FRAGMENT_SHADER_BIT,
                     VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT
             );
         }
@@ -400,7 +400,7 @@ public class Game {
                         new Vector3i(engine.swapchain().extent().x(), engine.swapchain().extent().y(), 1),
                         1, 1, ImageFormat.R8_UNORM,
                         PlortImage.Layout.UNDEFINED,
-                        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 1,
+                        ImageUsage.STORAGE_BIT | ImageUsage.SAMPLED_BIT, 1,
                         SharingMode.EXCLUSIVE,
                         MemoryUsage.GPU_ONLY,
                         PlortImage.ViewType.TYPE_2D,

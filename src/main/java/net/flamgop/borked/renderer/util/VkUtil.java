@@ -1,7 +1,9 @@
 package net.flamgop.borked.renderer.util;
 
+import net.flamgop.borked.renderer.image.AspectMask;
 import net.flamgop.borked.renderer.image.PlortImage;
 import net.flamgop.borked.renderer.memory.PlortBuffer;
+import net.flamgop.borked.renderer.pipeline.PipelineStage;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VK10;
 import org.lwjgl.vulkan.VkBufferImageCopy;
@@ -111,8 +113,8 @@ public class VkUtil {
                     cmdBuffer,
                     PlortImage.Layout.UNDEFINED,
                     PlortImage.Layout.TRANSFER_DST_OPTIMAL,
-                    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                    VK_PIPELINE_STAGE_TRANSFER_BIT,
+                    PipelineStage.TOP_OF_PIPE_BIT,
+                    PipelineStage.TRANSFER_BIT,
                     VK_ACCESS_NONE,
                     VK_ACCESS_TRANSFER_WRITE_BIT
             );
@@ -122,21 +124,21 @@ public class VkUtil {
                     .bufferRowLength(0)
                     .bufferImageHeight(0)
                     .imageSubresource(r -> r
-                            .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                            .aspectMask(AspectMask.COLOR_BIT)
                             .mipLevel(0)
                             .baseArrayLayer(0)
                             .layerCount(1))
                     .imageOffset(o -> o.set(0, 0, 0))
                     .imageExtent(e -> e.set(width, height, 1));
 
-            vkCmdCopyBufferToImage(cmdBuffer, data.handle(), image.handle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, region);
+            vkCmdCopyBufferToImage(cmdBuffer, data.handle(), image.handle(), PlortImage.Layout.TRANSFER_DST_OPTIMAL.qualifier(), region);
 
             image.transitionLayout(
                     cmdBuffer,
                     PlortImage.Layout.TRANSFER_DST_OPTIMAL,
                     PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL,
-                    VK_PIPELINE_STAGE_TRANSFER_BIT,
-                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    PipelineStage.TRANSFER_BIT,
+                    PipelineStage.FRAGMENT_SHADER_BIT,
                     VK_ACCESS_TRANSFER_WRITE_BIT,
                     VK_ACCESS_SHADER_READ_BIT
             );

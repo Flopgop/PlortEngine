@@ -21,7 +21,6 @@ import java.util.List;
 
 import static org.lwjgl.vulkan.EXTMeshShader.vkCmdDrawMeshTasksEXT;
 import static org.lwjgl.vulkan.VK10.*;
-import static org.lwjgl.vulkan.VK10.VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
 
 public class GBuffer implements AutoCloseable {
     private final PlortSampler gbufferSampler;
@@ -286,8 +285,8 @@ public class GBuffer implements AutoCloseable {
                     VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
             );
 
-            vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, null, null, barriers.slice(0, 3));
-            vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, 0, null, null, barriers.slice(3, 1));
+            vkCmdPipelineBarrier(cmdBuffer, PipelineStage.FRAGMENT_SHADER_BIT, PipelineStage.COLOR_ATTACHMENT_OUTPUT_BIT, 0, null, null, barriers.slice(0, 3));
+            vkCmdPipelineBarrier(cmdBuffer, PipelineStage.FRAGMENT_SHADER_BIT, PipelineStage.LATE_FRAGMENT_TESTS_BIT, 0, null, null, barriers.slice(3, 1));
         }
     }
 
@@ -323,8 +322,8 @@ public class GBuffer implements AutoCloseable {
                     VK_ACCESS_SHADER_READ_BIT
             );
 
-            vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, null, null, barriers.slice(0, 3));
-            vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, null, null, barriers.slice(3, 1));
+            vkCmdPipelineBarrier(cmdBuffer, PipelineStage.COLOR_ATTACHMENT_OUTPUT_BIT, PipelineStage.FRAGMENT_SHADER_BIT | PipelineStage.COMPUTE_SHADER_BIT, 0, null, null, barriers.slice(0, 3));
+            vkCmdPipelineBarrier(cmdBuffer, PipelineStage.LATE_FRAGMENT_TESTS_BIT, PipelineStage.FRAGMENT_SHADER_BIT | PipelineStage.COMPUTE_SHADER_BIT, 0, null, null, barriers.slice(3, 1));
         }
     }
 

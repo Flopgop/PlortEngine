@@ -49,6 +49,4 @@ dependencies {
     implementation("org.apache.logging.log4j:log4j-api:2.25.1")
     implementation("org.apache.logging.log4j:log4j-core:2.25.1")
     implementation("org.apache.logging.log4j:log4j-slf4j2-impl:2.25.1")
-
-    implementation("de.javagl:jgltf-model:2.0.4")
 }
