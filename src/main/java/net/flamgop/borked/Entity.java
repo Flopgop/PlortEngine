@@ -12,7 +12,7 @@ import net.flamgop.borked.renderer.pipeline.PlortPipeline;
 import org.lwjgl.vulkan.VkCommandBuffer;
 
 public class Entity implements AutoCloseable {
-    private static final int INSTANCE_BUFFER_SIZE = 2 * (4 * 4 * Float.BYTES); // model, inverse_model
+    private static final int INSTANCE_BUFFER_SIZE = 2 * Matrix4f.BYTES; // model, inverse_model
 
     private final PlortModel model;
     private final PlortBuffer instanceBuffer;

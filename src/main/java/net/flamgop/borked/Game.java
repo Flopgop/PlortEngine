@@ -191,17 +191,11 @@ public class Game {
 
         this.ssaoTexture = new PlortTexture(
                 new PlortImage(
-                        engine.device(),
-                        engine.allocator(),
-                        PlortImage.Type.TYPE_2D,
-                        new Vector3i(engine.swapchain().extent().x(), engine.swapchain().extent().y(), 1),
+                        engine.device(), engine.allocator(),
+                        PlortImage.Type.TYPE_2D, new Vector3i(engine.swapchain().extent().x(), engine.swapchain().extent().y(), 1),
                         1, 1, ImageFormat.R8_UNORM,
-                        PlortImage.Layout.UNDEFINED,
-                        ImageUsage.STORAGE_BIT | ImageUsage.SAMPLED_BIT, 1,
-                        SharingMode.EXCLUSIVE,
-                        MemoryUsage.GPU_ONLY,
-                        PlortImage.ViewType.TYPE_2D,
-                        AspectMask.COLOR_BIT
+                        PlortImage.Layout.UNDEFINED, ImageUsage.STORAGE_BIT | ImageUsage.SAMPLED_BIT, 1,
+                        SharingMode.EXCLUSIVE, MemoryUsage.GPU_ONLY, PlortImage.ViewType.TYPE_2D, AspectMask.COLOR_BIT
                         ),
                 new PlortSampler(engine.device(), PlortSampler.Filter.NEAREST, PlortSampler.Filter.NEAREST, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE)
         );
@@ -394,17 +388,11 @@ public class Game {
         this.ssaoTexture.close();
         this.ssaoTexture = new PlortTexture(
                 new PlortImage(
-                        engine.device(),
-                        engine.allocator(),
-                        PlortImage.Type.TYPE_2D,
-                        new Vector3i(engine.swapchain().extent().x(), engine.swapchain().extent().y(), 1),
+                        engine.device(), engine.allocator(),
+                        PlortImage.Type.TYPE_2D, new Vector3i(engine.swapchain().extent().x(), engine.swapchain().extent().y(), 1),
                         1, 1, ImageFormat.R8_UNORM,
-                        PlortImage.Layout.UNDEFINED,
-                        ImageUsage.STORAGE_BIT | ImageUsage.SAMPLED_BIT, 1,
-                        SharingMode.EXCLUSIVE,
-                        MemoryUsage.GPU_ONLY,
-                        PlortImage.ViewType.TYPE_2D,
-                        AspectMask.COLOR_BIT
+                        PlortImage.Layout.UNDEFINED, ImageUsage.STORAGE_BIT | ImageUsage.SAMPLED_BIT, 1,
+                        SharingMode.EXCLUSIVE, MemoryUsage.GPU_ONLY, PlortImage.ViewType.TYPE_2D, AspectMask.COLOR_BIT
                 ),
                 new PlortSampler(engine.device(), PlortSampler.Filter.LINEAR, PlortSampler.Filter.LINEAR, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE)
         );

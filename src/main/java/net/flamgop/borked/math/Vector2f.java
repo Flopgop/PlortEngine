@@ -7,7 +7,7 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 
 public class Vector2f {
-    public static final long BYTES = 2 * Float.BYTES;
+    public static final int BYTES = 2 * Float.BYTES;
     private static final ValueLayout.OfFloat F32 = ValueLayout.JAVA_FLOAT;
 
     private final MemorySegment memory;

@@ -26,7 +26,7 @@ import static org.lwjgl.vulkan.VK10.*;
 @SuppressWarnings("resource")
 public class TextRenderer extends TrackedCloseable {
 
-    private static final int STRING_DATA_BYTES = 4 * 4 * Float.BYTES + Long.BYTES + Integer.BYTES + Float.BYTES;
+    private static final int STRING_DATA_BYTES = Matrix4f.BYTES + Long.BYTES + Integer.BYTES + Float.BYTES;
     private static final int THREADS_PER_GROUP = 64;
 
     private final PlortSwapchain swapchain;

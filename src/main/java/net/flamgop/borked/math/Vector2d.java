@@ -7,7 +7,7 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 
 public class Vector2d {
-    public static final long BYTES = 2 * Double.BYTES;
+    public static final int BYTES = 2 * Double.BYTES;
     private static final ValueLayout.OfDouble F64 = ValueLayout.JAVA_DOUBLE;
 
     private final MemorySegment memory;

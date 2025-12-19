@@ -9,7 +9,7 @@ import java.nio.Buffer;
 
 @SuppressWarnings({"UnusedReturnValue", "DuplicatedCode"})
 public class Matrix4f {
-    public static final long BYTES = 16 * Float.BYTES;
+    public static final int BYTES = 16 * Float.BYTES;
     private static final ValueLayout.OfFloat F32 = ValueLayout.JAVA_FLOAT;
 
     private static final long M00 = 0;
@@ -260,6 +260,28 @@ public class Matrix4f {
     }
 
     public Matrix4f rotation(Quaternionf rotation) {
+        float w = rotation.w(), x = rotation.x(), y = rotation.y(), z = rotation.z();
+        float w2 = w * w;
+        float x2 = x * x;
+        float y2 = y * y;
+        float z2 = z * z;
+        float zw = z * w, dzw = zw + zw;
+        float xy = x * y, dxy = xy + xy;
+        float xz = x * z, dxz = xz + xz;
+        float yw = y * w, dyw = yw + yw;
+        float yz = y * z, dyz = yz + yz;
+        float xw = x * w, dxw = xw + xw;
+
+        this.setIdentity();
+        this.m00(w2 + x2 - z2 - y2);
+        this.m01(dxy + dzw);
+        this.m02(dxz - dyw);
+        this.m10(-dzw + dxy);
+        this.m11(y2 - z2 + w2 - x2);
+        this.m12(dyz + dxw);
+        this.m20(dyw + dxz);
+        this.m21(dyz - dxw);
+        this.m22(z2 - y2 - x2 + w2);
 
         return this;
     }

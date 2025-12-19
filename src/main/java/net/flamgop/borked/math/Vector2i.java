@@ -7,7 +7,7 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 
 public class Vector2i {
-    public static final long BYTES = 2 * Integer.BYTES;
+    public static final int BYTES = 2 * Integer.BYTES;
     private static final ValueLayout.OfInt I32 = ValueLayout.JAVA_INT;
 
     private final MemorySegment memory;

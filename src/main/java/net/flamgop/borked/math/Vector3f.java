@@ -7,7 +7,7 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 
 public class Vector3f {
-    public static final long BYTES = 3 * Float.BYTES;
+    public static final int BYTES = 3 * Float.BYTES;
     private static final ValueLayout.OfFloat F32 = ValueLayout.JAVA_FLOAT;
 
     private final MemorySegment memory;
@@ -148,6 +148,6 @@ public class Vector3f {
     }
 
     public float dot(Vector3f b) {
-        return x() * b.x() + y() * b.y() + z() * b.z();
+        return Math.fma(x(), b.x(), Math.fma(y(), b.y(), z() * b.z()));
     }
 }

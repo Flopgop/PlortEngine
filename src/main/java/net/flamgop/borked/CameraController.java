@@ -28,7 +28,7 @@ public class CameraController implements AutoCloseable {
 
     public CameraController(PlortAllocator allocator, PlortWindow window, float fov, float sensitivity) {
         this.input = window.input();
-        this.viewBuffer = new PlortBuffer(5 * (4 * 4 * Float.BYTES) + 4 * Float.BYTES, BufferUsage.UNIFORM_BUFFER_BIT, allocator);
+        this.viewBuffer = new PlortBuffer(5 * Matrix4f.BYTES + 4 * Float.BYTES, BufferUsage.UNIFORM_BUFFER_BIT, allocator);
         this.fov = fov;
         this.sensitivity = sensitivity;
         this.resize(window.width(), window.height());

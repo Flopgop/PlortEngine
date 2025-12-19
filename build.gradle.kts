@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "net.flamgop"
-version = "1.0-SNAPSHOT"
+version = "1.0.0"
 
 val lwjglNatives = Pair(
     System.getProperty("os.name")!!,
