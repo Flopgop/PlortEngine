@@ -1,7 +1,7 @@
 package net.flamgop.borked.renderer.text;
 
-import org.joml.Vector2f;
-import org.joml.Vector3f;
+import net.flamgop.borked.math.Vector2f;
+import net.flamgop.borked.math.Vector3f;
 
 public record Text(String text, Vector3f color, Vector2f offset, float scale, TextAlign align, float depth) {
     public Text(String text) {

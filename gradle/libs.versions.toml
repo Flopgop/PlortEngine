@@ -1,0 +1,33 @@
+[versions]
+jetbrains-annotations = "26.0.2-1"
+graal-collections = "25.0.0"
+jackson = "3.0.0"
+lwjgl = "3.4.0-SNAPSHOT"
+slf4j = "2.0.17"
+log4j = "2.25.1"
+
+[libraries]
+lwjgl-bom = { group = "org.lwjgl", name = "lwjgl-bom", version.ref = "lwjgl" }
+
+lwjgl = { group = "org.lwjgl", name = "lwjgl" }
+lwjgl-assimp = { group = "org.lwjgl", name = "lwjgl-assimp" }
+lwjgl-freetype = { group = "org.lwjgl", name = "lwjgl-freetype" }
+lwjgl-glfw = { group = "org.lwjgl", name = "lwjgl-glfw" }
+lwjgl-meshoptimizer = { group = "org.lwjgl", name = "lwjgl-meshoptimizer" }
+lwjgl-msdfgen = { group = "org.lwjgl", name = "lwjgl-msdfgen" }
+lwjgl-par = { group = "org.lwjgl", name = "lwjgl-par" }
+lwjgl-stb = { group = "org.lwjgl", name = "lwjgl-stb" }
+lwjgl-vma = { group = "org.lwjgl", name = "lwjgl-vma" }
+lwjgl-vulkan = { group = "org.lwjgl", name = "lwjgl-vulkan" }
+
+jackson-core = { group = "tools.jackson.core", name = "jackson-core", version.ref = "jackson" }
+jackson-databind = { group = "tools.jackson.core", name = "jackson-databind", version.ref = "jackson" }
+
+graal-collections = { module = "org.graalvm.sdk:collections", version.ref = "graal-collections" }
+
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
+log4j-api = { group = "org.apache.logging.log4j", name = "log4j-api", version.ref = "log4j" }
+log4j-core = { group = "org.apache.logging.log4j", name = "log4j-core", version.ref = "log4j" }
+log4j-slf4j2-impl = { group = "org.apache.logging.log4j", name = "log4j-slf4j2-impl", version.ref = "log4j" }
+
+jetbrains-annotations = { module = "org.jetbrains:annotations", version.ref = "jetbrains-annotations" }

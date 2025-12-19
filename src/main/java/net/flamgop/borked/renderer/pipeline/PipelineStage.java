@@ -9,6 +9,7 @@ import static org.lwjgl.vulkan.EXTTransformFeedback.VK_PIPELINE_STAGE_TRANSFORM_
 import static org.lwjgl.vulkan.KHRAccelerationStructure.VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR;
 import static org.lwjgl.vulkan.KHRFragmentShadingRate.VK_PIPELINE_STAGE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR;
 import static org.lwjgl.vulkan.KHRRayTracingPipeline.VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR;
+import static org.lwjgl.vulkan.KHRSynchronization2.VK_PIPELINE_STAGE_NONE_KHR;
 import static org.lwjgl.vulkan.NVDeviceGeneratedCommands.VK_PIPELINE_STAGE_COMMAND_PREPROCESS_BIT_NV;
 import static org.lwjgl.vulkan.NVMeshShader.VK_PIPELINE_STAGE_MESH_SHADER_BIT_NV;
 import static org.lwjgl.vulkan.NVMeshShader.VK_PIPELINE_STAGE_TASK_SHADER_BIT_NV;
@@ -52,5 +53,5 @@ public class PipelineStage {
     public static final int TASK_SHADER_BIT_NV                          = VK_PIPELINE_STAGE_TASK_SHADER_BIT_NV; // VK_NV_mesh_shader
     public static final int MESH_SHADER_BIT_NV                          = VK_PIPELINE_STAGE_MESH_SHADER_BIT_NV; // VK_NV_mesh_shader
     public static final int COMMAND_PREPROCESS_BIT_NV                   = VK_PIPELINE_STAGE_COMMAND_PREPROCESS_BIT_NV; // VK_NV_device_generated_commands
-    public static final int NONE_KHR                                    = VK_PIPELINE_STAGE_NONE; // VK_KHR_synchronization2
+    public static final int NONE_KHR                                    = VK_PIPELINE_STAGE_NONE_KHR; // VK_KHR_synchronization2
 }

@@ -1,12 +1,12 @@
 package net.flamgop.borked.renderer.image;
 
+import net.flamgop.borked.math.Vector3i;
 import net.flamgop.borked.renderer.memory.TrackedCloseable;
 import net.flamgop.borked.renderer.memory.MemoryUsage;
 import net.flamgop.borked.renderer.PlortDevice;
 import net.flamgop.borked.renderer.memory.SharingMode;
 import net.flamgop.borked.renderer.memory.PlortAllocator;
 import net.flamgop.borked.renderer.util.VkUtil;
-import org.joml.Vector3i;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.util.vma.VmaAllocationCreateInfo;
@@ -155,7 +155,7 @@ public class PlortImage extends TrackedCloseable {
             VkImageCreateInfo imageInfo = VkImageCreateInfo.calloc(stack)
                     .sType$Default()
                     .imageType(type.qualifier())
-                    .extent(e -> e.set(extent.x, extent.y, extent.z))
+                    .extent(e -> e.set(extent.x(), extent.y(), extent.z()))
                     .mipLevels(mipLevels)
                     .arrayLayers(arrayLayers)
                     .format(format.qualifier())

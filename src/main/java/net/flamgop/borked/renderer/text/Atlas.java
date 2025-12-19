@@ -1,5 +1,8 @@
 package net.flamgop.borked.renderer.text;
 
+import net.flamgop.borked.math.Vector2d;
+import net.flamgop.borked.math.Vector3i;
+import net.flamgop.borked.math.Vector4d;
 import net.flamgop.borked.renderer.PlortCommandPool;
 import net.flamgop.borked.renderer.PlortDevice;
 import net.flamgop.borked.renderer.image.ImageFormat;
@@ -12,7 +15,6 @@ import net.flamgop.borked.renderer.text.json.JsonGlyph;
 import net.flamgop.borked.renderer.util.ResourceHelper;
 import net.flamgop.borked.renderer.util.VkUtil;
 import org.graalvm.collections.Pair;
-import org.joml.*;
 import org.lwjgl.stb.STBImage;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
@@ -53,7 +55,7 @@ public class Atlas extends TrackedCloseable {
                 final int ch = c;
                 Optional<JsonGlyph> maybeGlyph = atlasFile.glyphs.stream().filter(g -> g.unicode == ch).findFirst();
                 if (maybeGlyph.isEmpty()) {
-                    glyphs.add(Pair.create((char) c, new Glyph(new Vector4d(), new Vector2d(), new Vector2d(), 0.261, true))); // let's just say this char is a space :3
+                    glyphs.add(Pair.create((char) c, new Glyph(new Vector4d(0), new Vector2d(0), new Vector2d(0), 0.261, true))); // let's just say this char is a space :3
                     memory.putFloat(0);
                     memory.putFloat(0);
                     memory.putFloat(0);
@@ -67,7 +69,7 @@ public class Atlas extends TrackedCloseable {
                 JsonGlyph glyph = maybeGlyph.get();
 
                 if (glyph.atlasBounds == null) {
-                    glyphs.add(Pair.create((char) c, new Glyph(new Vector4d(), new Vector2d(), new Vector2d(), glyph.advance, true)));
+                    glyphs.add(Pair.create((char) c, new Glyph(new Vector4d(0), new Vector2d(0), new Vector2d(0), glyph.advance, true)));
                     memory.putFloat(0);
                     memory.putFloat(0);
                     memory.putFloat(0);
@@ -231,8 +233,8 @@ public class Atlas extends TrackedCloseable {
                         int index = glyphs.indexOf(glyphPair);
                         Glyph glyph = glyphPair.getRight();
 
-                        mem.putFloat(penX + (float) glyph.bearing().x * t.scale());
-                        mem.putFloat(penY - (float) glyph.bearing().y * t.scale());
+                        mem.putFloat(penX + (float) glyph.bearing().x() * t.scale());
+                        mem.putFloat(penY - (float) glyph.bearing().y() * t.scale());
                         mem.putFloat((float) glyph.size().x() * t.scale());
                         mem.putFloat((float) glyph.size().y() * t.scale());
                         mem.putFloat(t.color().x());

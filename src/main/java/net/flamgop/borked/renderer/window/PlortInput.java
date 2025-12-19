@@ -1,20 +1,20 @@
 package net.flamgop.borked.renderer.window;
 
+import net.flamgop.borked.math.Vector2f;
 import net.flamgop.borked.renderer.util.Util;
-import org.joml.Vector2d;
 
 import static org.lwjgl.glfw.GLFW.*;
 
 public class PlortInput {
-    private final Vector2d mousePosition = new Vector2d();
+    private final Vector2f mousePosition = new Vector2f(0);
 
     private final boolean[] keysPressed = new boolean[GLFW_KEY_LAST];
     private final boolean[] buttonsPressed = new boolean[GLFW_MOUSE_BUTTON_LAST];
 
     public PlortInput(PlortWindow window) {
         Util.closeIfNotNull(glfwSetCursorPosCallback(window.handle(), (_, x, y) -> {
-            this.mousePosition.x = x;
-            this.mousePosition.y = y;
+            this.mousePosition.x((float) x);
+            this.mousePosition.y((float) y);
         }));
         Util.closeIfNotNull(glfwSetKeyCallback(window.handle(), (_, key, scancode, action, mods) -> {
             keysPressed[key] = action == GLFW_PRESS || action == GLFW_REPEAT;
@@ -24,8 +24,8 @@ public class PlortInput {
         }));
     }
 
-    public Vector2d mousePosition() {
-        return new Vector2d(mousePosition);
+    public Vector2f mousePosition() {
+        return new Vector2f(mousePosition);
     }
 
     public boolean keyDown(int key) {

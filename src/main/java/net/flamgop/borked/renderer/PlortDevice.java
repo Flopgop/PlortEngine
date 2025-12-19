@@ -5,7 +5,7 @@ import net.flamgop.borked.renderer.descriptor.DescriptorWrite;
 import net.flamgop.borked.renderer.descriptor.TextureDescriptorWrite;
 import net.flamgop.borked.renderer.memory.TrackedCloseable;
 import net.flamgop.borked.renderer.util.VkUtil;
-import net.flamgop.borked.renderer.util.VulkanException;
+import net.flamgop.borked.renderer.exception.VulkanException;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;

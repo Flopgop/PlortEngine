@@ -1,6 +1,6 @@
 package net.flamgop.borked.renderer.memory;
 
-import org.joml.Matrix4f;
+import net.flamgop.borked.math.Matrix4f;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;

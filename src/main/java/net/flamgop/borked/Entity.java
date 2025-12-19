@@ -1,14 +1,14 @@
 package net.flamgop.borked;
 
+import net.flamgop.borked.math.Matrix4f;
+import net.flamgop.borked.math.Quaternionf;
+import net.flamgop.borked.math.Vector3f;
 import net.flamgop.borked.renderer.memory.BufferUsage;
 import net.flamgop.borked.renderer.memory.MappedMemory;
 import net.flamgop.borked.renderer.memory.PlortAllocator;
 import net.flamgop.borked.renderer.memory.PlortBuffer;
 import net.flamgop.borked.renderer.model.PlortModel;
 import net.flamgop.borked.renderer.pipeline.PlortPipeline;
-import org.joml.Matrix4f;
-import org.joml.Quaternionf;
-import org.joml.Vector3f;
 import org.lwjgl.vulkan.VkCommandBuffer;
 
 public class Entity implements AutoCloseable {
@@ -33,7 +33,7 @@ public class Entity implements AutoCloseable {
     }
 
     public void setPosition(Vector3f position) {
-        this.setPosition(position.x, position.y, position.z);
+        this.setPosition(position.x(), position.y(), position.z());
     }
     public void setPosition(float x, float y, float z) {
         transform.translation(x, y, z);

@@ -1,14 +1,14 @@
 package net.flamgop.borked;
 
+import net.flamgop.borked.math.Matrix4f;
+import net.flamgop.borked.math.Vector2f;
+import net.flamgop.borked.math.Vector3f;
 import net.flamgop.borked.renderer.window.PlortInput;
 import net.flamgop.borked.renderer.window.PlortWindow;
 import net.flamgop.borked.renderer.memory.BufferUsage;
 import net.flamgop.borked.renderer.memory.MappedMemory;
 import net.flamgop.borked.renderer.memory.PlortAllocator;
 import net.flamgop.borked.renderer.memory.PlortBuffer;
-import org.joml.Matrix4f;
-import org.joml.Vector2d;
-import org.joml.Vector3f;
 import org.lwjgl.glfw.GLFW;
 
 public class CameraController implements AutoCloseable {
@@ -47,11 +47,11 @@ public class CameraController implements AutoCloseable {
     }
 
     public void resize(int width, int height) {
-        this.projection.identity().perspective((float) Math.toRadians(fov), (float) width / height, 0.001f, 1000.0f, true);
+        this.projection.setIdentity().perspective((float) Math.toRadians(fov), (float) width / height, 0.001f, 1000.0f, true);
     }
 
     private void look() {
-        Vector2d mousePos = input.mousePosition();
+        Vector2f mousePos = input.mousePosition();
 
         float dx = ((float) mousePos.x() - lastMouseX) * sensitivity;
         float dy = (lastMouseY - (float) mousePos.y()) * sensitivity;
@@ -71,28 +71,28 @@ public class CameraController implements AutoCloseable {
         float speed = 2f * deltaTime;
 
         if (input.keyDown(GLFW.GLFW_KEY_W)) {
-            Vector3f displacement = new Vector3f(forward).mul(speed);
+            Vector3f displacement = new Vector3f(forward).scale(speed);
             position.add(displacement);
         }
         if (input.keyDown(GLFW.GLFW_KEY_A)) {
-            Vector3f displacement = new Vector3f(right).mul(-speed);
+            Vector3f displacement = new Vector3f(right).scale(-speed);
             position.add(displacement);
         }
         if (input.keyDown(GLFW.GLFW_KEY_S)) {
-            Vector3f displacement = new Vector3f(forward).mul(-speed);
+            Vector3f displacement = new Vector3f(forward).scale(-speed);
             position.add(displacement);
         }
         if (input.keyDown(GLFW.GLFW_KEY_D)) {
-            Vector3f displacement = new Vector3f(right).mul(speed);
+            Vector3f displacement = new Vector3f(right).scale(speed);
             position.add(displacement);
         }
 
         Vector3f cameraTarget = new Vector3f(position).add(forward);
-        view.identity().lookAt(position, cameraTarget, up);
+        view.setIdentity().lookAt(position, cameraTarget, up);
     }
     private void upload() {
         try (MappedMemory mem = viewBuffer.map()) {
-            mem.putMatrix4f(new Matrix4f(projection).mul(view));
+            mem.putMatrix4f(new Matrix4f(projection).multiply(view));
             mem.putMatrix4f(view);
             mem.putMatrix4f(projection);
             mem.putMatrix4f(new Matrix4f(view).invert());

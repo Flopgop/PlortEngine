@@ -1,5 +1,6 @@
 package net.flamgop.borked.renderer.text;
 
+import net.flamgop.borked.math.Matrix4f;
 import net.flamgop.borked.renderer.descriptor.PlortBufferedDescriptorSetPool;
 import net.flamgop.borked.renderer.PlortDevice;
 import net.flamgop.borked.renderer.descriptor.PlortDescriptor;
@@ -10,7 +11,6 @@ import net.flamgop.borked.renderer.memory.PlortBuffer;
 import net.flamgop.borked.renderer.pipeline.*;
 import net.flamgop.borked.renderer.swapchain.PlortSwapchain;
 import net.flamgop.borked.renderer.util.ResourceHelper;
-import org.joml.Matrix4f;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.vulkan.VkCommandBuffer;
@@ -26,7 +26,7 @@ import static org.lwjgl.vulkan.VK10.*;
 @SuppressWarnings("resource")
 public class TextRenderer extends TrackedCloseable {
 
-    private static final int STRING_DATA_BYTES = 4 * 4 * Float.BYTES + Long.BYTES + 2 * Integer.BYTES;
+    private static final int STRING_DATA_BYTES = 4 * 4 * Float.BYTES + Long.BYTES + Integer.BYTES + Float.BYTES;
     private static final int THREADS_PER_GROUP = 64;
 
     private final PlortSwapchain swapchain;
@@ -107,12 +107,12 @@ public class TextRenderer extends TrackedCloseable {
             vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.handle());
 
             int glyphCount = (int)(buffer.size() / Atlas.GLYPH_MESHLET_SIZE);
-            Matrix4f projection = new Matrix4f().ortho(0f, swapchain.extent().x(), 0f, swapchain.extent().y(), -1f, 1f, true);
+            Matrix4f projection = new Matrix4f().orthographic(0f, swapchain.extent().x(), 0f, swapchain.extent().y(), -1f, 1f, true);
             ByteBuffer stringData = stack.calloc(STRING_DATA_BYTES);
-            projection.get(0, stringData);
+            projection.getToBuffer(stringData);
             stringData.putLong(4 * 4 * Float.BYTES, buffer.deviceAddress());
             stringData.putInt(4 * 4 * Float.BYTES + Long.BYTES, glyphCount);
-            stringData.putInt(4 * 4 * Float.BYTES + Long.BYTES + Integer.BYTES, 0);
+            stringData.putFloat(4 * 4 * Float.BYTES + Long.BYTES + Integer.BYTES, 0f); // TODO: this is supposed to be an "outline thickness" parameter, but I don't know how to implement it right now
             vkCmdPushConstants(cmdBuffer, pipeline.layout(), PlortShaderStage.Stage.MESH.bit(), 0, stringData);
             vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout(), 0, stack.longs(pool.descriptorSet(frame, 0)), null);
 

@@ -3,7 +3,7 @@ package net.flamgop.borked.renderer;
 import net.flamgop.borked.renderer.memory.PlortAllocator;
 import net.flamgop.borked.renderer.swapchain.PlortSwapchain;
 import net.flamgop.borked.renderer.util.VkUtil;
-import net.flamgop.borked.renderer.util.VulkanException;
+import net.flamgop.borked.renderer.exception.VulkanException;
 import net.flamgop.borked.renderer.window.PlortWindow;
 import org.jetbrains.annotations.NotNull;
 import org.lwjgl.PointerBuffer;

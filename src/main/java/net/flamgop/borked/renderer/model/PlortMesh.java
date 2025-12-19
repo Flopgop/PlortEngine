@@ -1,7 +1,7 @@
 package net.flamgop.borked.renderer.model;
 
+import net.flamgop.borked.math.Vector3f;
 import net.flamgop.borked.renderer.memory.*;
-import org.joml.Vector3f;
 import org.lwjgl.assimp.*;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;

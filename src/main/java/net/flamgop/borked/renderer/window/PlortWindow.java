@@ -1,7 +1,7 @@
 package net.flamgop.borked.renderer.window;
 
 import net.flamgop.borked.renderer.util.VkUtil;
-import net.flamgop.borked.renderer.util.VulkanException;
+import net.flamgop.borked.renderer.exception.VulkanException;
 import org.lwjgl.glfw.*;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.windows.WindowsLibrary;

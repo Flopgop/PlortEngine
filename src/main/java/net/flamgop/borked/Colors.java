@@ -1,6 +1,6 @@
 package net.flamgop.borked;
 
-import org.joml.Vector3f;
+import net.flamgop.borked.math.Vector3f;
 
 public final class Colors {
     private static final Vector3f RED = new Vector3f(1.0f, 0.0f, 0.0f);

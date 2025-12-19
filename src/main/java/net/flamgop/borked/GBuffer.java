@@ -1,5 +1,6 @@
 package net.flamgop.borked;
 
+import net.flamgop.borked.math.Vector3i;
 import net.flamgop.borked.renderer.descriptor.PlortBufferedDescriptorSetPool;
 import net.flamgop.borked.renderer.PlortEngine;
 import net.flamgop.borked.renderer.descriptor.PlortDescriptor;
@@ -11,7 +12,6 @@ import net.flamgop.borked.renderer.memory.SharingMode;
 import net.flamgop.borked.renderer.pipeline.*;
 import net.flamgop.borked.renderer.renderpass.*;
 import net.flamgop.borked.renderer.util.ResourceHelper;
-import org.joml.Vector3i;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.vulkan.*;
@@ -46,114 +46,68 @@ public class GBuffer implements AutoCloseable {
                 engine.swapchain().imageCount(),
                 List.of(
                         new PlortAttachment(
-                                ImageFormat.R16G16B16A16_SFLOAT,
-                                VK_SAMPLE_COUNT_1_BIT,
-                                AttachmentLoadOp.CLEAR,
-                                AttachmentStoreOp.STORE,
-                                AttachmentLoadOp.DONT_CARE,
-                                AttachmentStoreOp.DONT_CARE,
-                                PlortImage.Layout.UNDEFINED,
-                                PlortImage.Layout.COLOR_ATTACHMENT_OPTIMAL,
+                                ImageFormat.R16G16B16A16_SFLOAT, VK_SAMPLE_COUNT_1_BIT,
+                                AttachmentLoadOp.CLEAR, AttachmentStoreOp.STORE,
+                                AttachmentLoadOp.DONT_CARE, AttachmentStoreOp.DONT_CARE,
+                                PlortImage.Layout.UNDEFINED, PlortImage.Layout.COLOR_ATTACHMENT_OPTIMAL,
                                 (w, h, f) -> {
                                     if (gPositionImages[f] != null) gPositionImages[f].close();
                                     gPositionImages[f] = new PlortImage(
-                                            engine.device(),
-                                            engine.allocator(),
-                                            PlortImage.Type.TYPE_2D,
-                                            new Vector3i(w, h, 1),
-                                            1, 1,
-                                            ImageFormat.R16G16B16A16_SFLOAT,
-                                            PlortImage.Layout.UNDEFINED,
-                                            ImageUsage.COLOR_ATTACHMENT_BIT | ImageUsage.SAMPLED_BIT,
-                                            VK_SAMPLE_COUNT_1_BIT,
-                                            SharingMode.EXCLUSIVE,
-                                            MemoryUsage.GPU_ONLY,
-                                            PlortImage.ViewType.TYPE_2D,
-                                            AspectMask.COLOR_BIT
+                                            engine.device(), engine.allocator(),
+                                            PlortImage.Type.TYPE_2D, new Vector3i(w, h, 1),
+                                            1, 1, ImageFormat.R16G16B16A16_SFLOAT, PlortImage.Layout.UNDEFINED,
+                                            ImageUsage.COLOR_ATTACHMENT_BIT | ImageUsage.SAMPLED_BIT, VK_SAMPLE_COUNT_1_BIT, SharingMode.EXCLUSIVE, MemoryUsage.GPU_ONLY, PlortImage.ViewType.TYPE_2D, AspectMask.COLOR_BIT
                                     );
                                     return gPositionImages[f].view();
                                 }
                         ),
                         new PlortAttachment(
-                                ImageFormat.R16G16B16A16_SFLOAT,
-                                VK_SAMPLE_COUNT_1_BIT,
-                                AttachmentLoadOp.CLEAR,
-                                AttachmentStoreOp.STORE,
-                                AttachmentLoadOp.DONT_CARE,
-                                AttachmentStoreOp.DONT_CARE,
-                                PlortImage.Layout.UNDEFINED,
-                                PlortImage.Layout.COLOR_ATTACHMENT_OPTIMAL,
+                                ImageFormat.R16G16B16A16_SFLOAT, VK_SAMPLE_COUNT_1_BIT,
+                                AttachmentLoadOp.CLEAR, AttachmentStoreOp.STORE,
+                                AttachmentLoadOp.DONT_CARE, AttachmentStoreOp.DONT_CARE,
+                                PlortImage.Layout.UNDEFINED, PlortImage.Layout.COLOR_ATTACHMENT_OPTIMAL,
                                 (w, h, f) -> {
                                     if (gNormalImages[f] != null) gNormalImages[f].close();
                                     gNormalImages[f] = new PlortImage(
-                                            engine.device(),
-                                            engine.allocator(),
-                                            PlortImage.Type.TYPE_2D,
-                                            new Vector3i(w, h, 1),
-                                            1, 1,
-                                            ImageFormat.R16G16B16A16_SFLOAT,
-                                            PlortImage.Layout.UNDEFINED,
-                                            ImageUsage.COLOR_ATTACHMENT_BIT | ImageUsage.SAMPLED_BIT,
-                                            VK_SAMPLE_COUNT_1_BIT,
-                                            SharingMode.EXCLUSIVE,
-                                            MemoryUsage.GPU_ONLY,
-                                            PlortImage.ViewType.TYPE_2D,
-                                            AspectMask.COLOR_BIT
+                                            engine.device(), engine.allocator(),
+                                            PlortImage.Type.TYPE_2D, new Vector3i(w, h, 1),
+                                            1, 1, ImageFormat.R16G16B16A16_SFLOAT, PlortImage.Layout.UNDEFINED,
+                                            ImageUsage.COLOR_ATTACHMENT_BIT | ImageUsage.SAMPLED_BIT, VK_SAMPLE_COUNT_1_BIT,
+                                            SharingMode.EXCLUSIVE, MemoryUsage.GPU_ONLY, PlortImage.ViewType.TYPE_2D, AspectMask.COLOR_BIT
                                     );
                                     return gNormalImages[f].view();
                                 }
                         ),
                         new PlortAttachment(
-                                ImageFormat.R8G8B8A8_UNORM,
-                                VK_SAMPLE_COUNT_1_BIT,
-                                AttachmentLoadOp.CLEAR,
-                                AttachmentStoreOp.STORE,
-                                AttachmentLoadOp.DONT_CARE,
-                                AttachmentStoreOp.DONT_CARE,
-                                PlortImage.Layout.UNDEFINED,
-                                PlortImage.Layout.COLOR_ATTACHMENT_OPTIMAL,
+                                ImageFormat.R8G8B8A8_UNORM, VK_SAMPLE_COUNT_1_BIT,
+                                AttachmentLoadOp.CLEAR, AttachmentStoreOp.STORE,
+                                AttachmentLoadOp.DONT_CARE, AttachmentStoreOp.DONT_CARE,
+                                PlortImage.Layout.UNDEFINED, PlortImage.Layout.COLOR_ATTACHMENT_OPTIMAL,
                                 (w, h, f) -> {
                                     if (gAlbedoImages[f] != null) gAlbedoImages[f].close();
                                     gAlbedoImages[f] = new PlortImage(
-                                            engine.device(),
-                                            engine.allocator(),
-                                            PlortImage.Type.TYPE_2D,
-                                            new Vector3i(w, h, 1),
-                                            1, 1,
-                                            ImageFormat.R8G8B8A8_UNORM,
-                                            PlortImage.Layout.UNDEFINED,
-                                            ImageUsage.COLOR_ATTACHMENT_BIT | ImageUsage.SAMPLED_BIT,
-                                            VK_SAMPLE_COUNT_1_BIT,
-                                            SharingMode.EXCLUSIVE,
-                                            MemoryUsage.GPU_ONLY,
-                                            PlortImage.ViewType.TYPE_2D,
-                                            AspectMask.COLOR_BIT
+                                            engine.device(), engine.allocator(),
+                                            PlortImage.Type.TYPE_2D, new Vector3i(w, h, 1),
+                                            1, 1, ImageFormat.R8G8B8A8_UNORM, PlortImage.Layout.UNDEFINED,
+                                            ImageUsage.COLOR_ATTACHMENT_BIT | ImageUsage.SAMPLED_BIT, VK_SAMPLE_COUNT_1_BIT,
+                                            SharingMode.EXCLUSIVE, MemoryUsage.GPU_ONLY, PlortImage.ViewType.TYPE_2D, AspectMask.COLOR_BIT
                                     );
                                     return gAlbedoImages[f].view();
                                 }
                         ),
                         new PlortAttachment(
-                                ImageFormat.D32_SFLOAT,
-                                VK_SAMPLE_COUNT_1_BIT,
-                                AttachmentLoadOp.CLEAR,
-                                AttachmentStoreOp.DONT_CARE,
-                                AttachmentLoadOp.DONT_CARE,
-                                AttachmentStoreOp.DONT_CARE,
-                                PlortImage.Layout.UNDEFINED,
-                                PlortImage.Layout.DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                                ImageFormat.D32_SFLOAT, VK_SAMPLE_COUNT_1_BIT,
+                                AttachmentLoadOp.CLEAR, AttachmentStoreOp.DONT_CARE,
+                                AttachmentLoadOp.DONT_CARE, AttachmentStoreOp.DONT_CARE,
+                                PlortImage.Layout.UNDEFINED, PlortImage.Layout.DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
                                 (w, h, f) -> {
                                     if (gDepthImages[f] != null) gDepthImages[f].close();
                                     gDepthImages[f] = new PlortImage(
                                             engine.device(), engine.allocator(),
                                             PlortImage.Type.TYPE_2D, new Vector3i(w, h, 1),
-                                            1, 1, ImageFormat.D32_SFLOAT,
-                                            PlortImage.Layout.UNDEFINED,
-                                            ImageUsage.DEPTH_STENCIL_ATTACHMENT_BIT | ImageUsage.SAMPLED_BIT,
-                                            VK_SAMPLE_COUNT_1_BIT,
-                                            SharingMode.EXCLUSIVE,
-                                            MemoryUsage.GPU_ONLY,
-                                            PlortImage.ViewType.TYPE_2D,
-                                            AspectMask.DEPTH_BIT
+                                            1, 1, ImageFormat.D32_SFLOAT, PlortImage.Layout.UNDEFINED,
+                                            ImageUsage.DEPTH_STENCIL_ATTACHMENT_BIT | ImageUsage.SAMPLED_BIT, VK_SAMPLE_COUNT_1_BIT,
+                                            SharingMode.EXCLUSIVE, MemoryUsage.GPU_ONLY, PlortImage.ViewType.TYPE_2D, AspectMask.DEPTH_BIT
                                     );
 
                                     return gDepthImages[f].view();
@@ -258,31 +212,23 @@ public class GBuffer implements AutoCloseable {
             VkImageMemoryBarrier.Buffer barriers = VkImageMemoryBarrier.calloc(4, stack);
             gPositionImages[imageIndex].transitionLayout(
                     barriers.get(0),
-                    PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL,
-                    PlortImage.Layout.COLOR_ATTACHMENT_OPTIMAL,
-                    VK_ACCESS_SHADER_READ_BIT,
-                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+                    PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, PlortImage.Layout.COLOR_ATTACHMENT_OPTIMAL,
+                    VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
             );
             gNormalImages[imageIndex].transitionLayout(
                     barriers.get(1),
-                    PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL,
-                    PlortImage.Layout.COLOR_ATTACHMENT_OPTIMAL,
-                    VK_ACCESS_SHADER_READ_BIT,
-                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+                    PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, PlortImage.Layout.COLOR_ATTACHMENT_OPTIMAL,
+                    VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
             );
             gAlbedoImages[imageIndex].transitionLayout(
                     barriers.get(2),
-                    PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL,
-                    PlortImage.Layout.COLOR_ATTACHMENT_OPTIMAL,
-                    VK_ACCESS_SHADER_READ_BIT,
-                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+                    PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, PlortImage.Layout.COLOR_ATTACHMENT_OPTIMAL,
+                    VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
             );
             gDepthImages[imageIndex].transitionLayout(
                     barriers.get(3),
-                    PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL,
-                    PlortImage.Layout.DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-                    VK_ACCESS_SHADER_READ_BIT,
-                    VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+                    PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, PlortImage.Layout.DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                    VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
             );
 
             vkCmdPipelineBarrier(cmdBuffer, PipelineStage.FRAGMENT_SHADER_BIT, PipelineStage.COLOR_ATTACHMENT_OUTPUT_BIT, 0, null, null, barriers.slice(0, 3));
@@ -295,31 +241,23 @@ public class GBuffer implements AutoCloseable {
             VkImageMemoryBarrier.Buffer barriers = VkImageMemoryBarrier.calloc(4, stack);
             gPositionImages[imageIndex].transitionLayout(
                     barriers.get(0),
-                    PlortImage.Layout.COLOR_ATTACHMENT_OPTIMAL,
-                    PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL,
-                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                    VK_ACCESS_SHADER_READ_BIT
+                    PlortImage.Layout.COLOR_ATTACHMENT_OPTIMAL, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL,
+                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT
             );
             gNormalImages[imageIndex].transitionLayout(
                     barriers.get(1),
-                    PlortImage.Layout.COLOR_ATTACHMENT_OPTIMAL,
-                    PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL,
-                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                    VK_ACCESS_SHADER_READ_BIT
+                    PlortImage.Layout.COLOR_ATTACHMENT_OPTIMAL, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL,
+                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT
             );
             gAlbedoImages[imageIndex].transitionLayout(
                     barriers.get(2),
-                    PlortImage.Layout.COLOR_ATTACHMENT_OPTIMAL,
-                    PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL,
-                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                    VK_ACCESS_SHADER_READ_BIT
+                    PlortImage.Layout.COLOR_ATTACHMENT_OPTIMAL, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL,
+                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT
             );
             gDepthImages[imageIndex].transitionLayout(
                     barriers.get(3),
-                    PlortImage.Layout.DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-                    PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL,
-                    VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-                    VK_ACCESS_SHADER_READ_BIT
+                    PlortImage.Layout.DEPTH_STENCIL_ATTACHMENT_OPTIMAL, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL,
+                    VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT
             );
 
             vkCmdPipelineBarrier(cmdBuffer, PipelineStage.COLOR_ATTACHMENT_OUTPUT_BIT, PipelineStage.FRAGMENT_SHADER_BIT | PipelineStage.COMPUTE_SHADER_BIT, 0, null, null, barriers.slice(0, 3));

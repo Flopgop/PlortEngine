@@ -1,9 +1,9 @@
 package net.flamgop.borked.renderer.swapchain;
 
+import net.flamgop.borked.math.Vector2i;
 import net.flamgop.borked.renderer.PlortDevice;
 import net.flamgop.borked.renderer.memory.TrackedCloseable;
 import net.flamgop.borked.renderer.util.VkUtil;
-import org.joml.Vector2i;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
 import org.slf4j.Logger;

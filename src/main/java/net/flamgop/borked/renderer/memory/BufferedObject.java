@@ -1,18 +1,19 @@
 package net.flamgop.borked.renderer.memory;
 
 import java.lang.reflect.Array;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class BufferedObject<T extends AutoCloseable> implements AutoCloseable {
     private final T[] objects;
     private int index = 0;
 
-    @SuppressWarnings("unchecked")
-    public BufferedObject(Class<T> typeParameterClass, int numObjects, Supplier<T> supplier) {
+    @SuppressWarnings({"unchecked", "resource"})
+    public BufferedObject(Class<T> typeParameterClass, int numObjects, Function<Integer, T> supplier) {
         if (numObjects <= 0) throw new IllegalArgumentException("numObjects must be non-zero and positive.");
         objects = (T[]) Array.newInstance(typeParameterClass, numObjects);
         for (int i = 0; i < numObjects; i++) {
-            objects[i] = supplier.get();
+            objects[i] = supplier.apply(i);
         }
     }
 

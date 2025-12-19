@@ -1,13 +1,13 @@
 package net.flamgop.borked.renderer.util;
 
 import net.flamgop.borked.Main;
+import net.flamgop.borked.math.Vector3i;
 import net.flamgop.borked.renderer.PlortEngine;
 import net.flamgop.borked.renderer.image.ImageFormat;
 import net.flamgop.borked.renderer.image.PlortImage;
 import net.flamgop.borked.renderer.image.PlortSampler;
 import net.flamgop.borked.renderer.material.PlortTexture;
 import net.flamgop.borked.renderer.memory.*;
-import org.joml.Vector3i;
 import org.lwjgl.stb.STBImage;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;

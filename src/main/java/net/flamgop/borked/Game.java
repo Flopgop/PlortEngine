@@ -1,5 +1,8 @@
 package net.flamgop.borked;
 
+import net.flamgop.borked.math.Quaternionf;
+import net.flamgop.borked.math.Vector2f;
+import net.flamgop.borked.math.Vector3i;
 import net.flamgop.borked.renderer.descriptor.*;
 import net.flamgop.borked.renderer.PlortEngine;
 import net.flamgop.borked.renderer.model.PlortModel;
@@ -13,9 +16,6 @@ import net.flamgop.borked.renderer.text.Text;
 import net.flamgop.borked.renderer.text.TextRenderer;
 import net.flamgop.borked.renderer.util.ResourceHelper;
 import net.flamgop.borked.renderer.util.VkUtil;
-import org.joml.Quaternionf;
-import org.joml.Vector2f;
-import org.joml.Vector3i;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
@@ -123,13 +123,13 @@ public class Game {
         gbuffer = new GBuffer(engine, mainRenderPass);
 
         this.textRenderer = new TextRenderer(engine.device(), engine.swapchain(), mainRenderPass, engine.swapchain().imageCount());
-        this.atlas = new Atlas(engine.device(), engine.allocator(), engine.commandPool(), "assets/fonts/nunito");
+        atlas = new Atlas(engine.device(), engine.allocator(), engine.commandPool(), "assets/fonts/nunito");
 
         for (int i = 0; i < engine.swapchain().imageCount(); i++) {
             this.textRenderer.switchAtlas(atlas, i);
         }
 
-        textBuffers = new BufferedObject<>(PlortBuffer.class, engine.swapchain().imageCount(), () -> atlas.buildTextBuffer(List.of(
+        textBuffers = new BufferedObject<>(PlortBuffer.class, engine.swapchain().imageCount(), (i) -> atlas.buildTextBuffer(List.of(
                 new Text(String.format("FPS: %.3f", 0f), Colors.red(), new Vector2f(0, 64), 0.5f),
                 new Text("Here's another line of even cooler text", Colors.blue(), new Vector2f(0, 64 + atlas.lineHeight() * 0.5f), 0.5f),
                 new Text("And another line of yet cooler text", Colors.green(), new Vector2f(0, 64 + 2 * atlas.lineHeight() * 0.5f), 0.5f)
@@ -257,7 +257,7 @@ public class Game {
             meshPipeline.bind(cmdBuffer, PipelineBindPoint.GRAPHICS);
 
             double time = (GLFW.glfwGetTime() % Math.TAU);
-            entities.getFirst().rotation(new Quaternionf(0, Math.sin(time / 2), 0, Math.cos(time / 2)).normalize());
+            entities.getFirst().rotation(new Quaternionf(0f, (float) Math.sin(time / 2), 0f, (float) Math.cos(time / 2)).normalize());
             entities.forEach(e -> e.submit(cmdBuffer, meshPipeline, currentFrameModInFlight));
         }
     }

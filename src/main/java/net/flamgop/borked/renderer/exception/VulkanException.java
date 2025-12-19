@@ -1,4 +1,4 @@
-package net.flamgop.borked.renderer.util;
+package net.flamgop.borked.renderer.exception;
 
 public class VulkanException extends RuntimeException {
     public VulkanException(String message) {
