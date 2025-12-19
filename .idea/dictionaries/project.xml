@@ -1,7 +1,9 @@
 <component name="ProjectDictionaryState">
   <dictionary name="project">
     <words>
+      <w>Quaternionf</w>
       <w>Swapchain</w>
+      <w>adjugate</w>
       <w>gbuffer</w>
       <w>raygen</w>
       <w>swapchain</w>
