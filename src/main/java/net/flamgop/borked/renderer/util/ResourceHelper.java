@@ -4,6 +4,7 @@ import net.flamgop.borked.Main;
 import net.flamgop.borked.math.Vector3i;
 import net.flamgop.borked.renderer.PlortEngine;
 import net.flamgop.borked.renderer.image.ImageFormat;
+import net.flamgop.borked.renderer.image.PlortFilter;
 import net.flamgop.borked.renderer.image.PlortImage;
 import net.flamgop.borked.renderer.image.PlortSampler;
 import net.flamgop.borked.renderer.material.PlortTexture;
@@ -75,7 +76,7 @@ public class ResourceHelper {
 
             stagingBuffer.close();
 
-            PlortSampler sampler = new PlortSampler(engine.device(), PlortSampler.Filter.LINEAR, PlortSampler.Filter.LINEAR, PlortSampler.AddressMode.REPEAT, PlortSampler.AddressMode.REPEAT, PlortSampler.AddressMode.REPEAT);
+            PlortSampler sampler = new PlortSampler(engine.device(), PlortFilter.LINEAR, PlortFilter.LINEAR, PlortSampler.AddressMode.REPEAT, PlortSampler.AddressMode.REPEAT, PlortSampler.AddressMode.REPEAT);
 
             return new PlortTexture(image, sampler);
         }
@@ -107,7 +108,7 @@ public class ResourceHelper {
 
         stagingBuffer.close();
 
-        PlortSampler sampler = new PlortSampler(engine.device(), PlortSampler.Filter.LINEAR, PlortSampler.Filter.LINEAR, PlortSampler.AddressMode.REPEAT, PlortSampler.AddressMode.REPEAT, PlortSampler.AddressMode.REPEAT);
+        PlortSampler sampler = new PlortSampler(engine.device(), PlortFilter.LINEAR, PlortFilter.LINEAR, PlortSampler.AddressMode.REPEAT, PlortSampler.AddressMode.REPEAT, PlortSampler.AddressMode.REPEAT);
 
         return new PlortTexture(image, sampler);
     }

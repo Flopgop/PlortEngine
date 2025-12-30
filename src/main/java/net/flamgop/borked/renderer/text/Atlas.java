@@ -6,6 +6,8 @@ import net.flamgop.borked.math.Vector4d;
 import net.flamgop.borked.renderer.PlortCommandPool;
 import net.flamgop.borked.renderer.PlortDevice;
 import net.flamgop.borked.renderer.image.ImageFormat;
+import net.flamgop.borked.renderer.image.PlortFilter;
+import net.flamgop.borked.renderer.material.PlortTexture;
 import net.flamgop.borked.renderer.memory.TrackedCloseable;
 import net.flamgop.borked.renderer.image.PlortImage;
 import net.flamgop.borked.renderer.image.PlortSampler;
@@ -156,7 +158,7 @@ public class Atlas extends TrackedCloseable {
 
             stagingBuffer.close();
 
-            this.sampler = new PlortSampler(device, PlortSampler.Filter.LINEAR, PlortSampler.Filter.LINEAR, PlortSampler.AddressMode.REPEAT, PlortSampler.AddressMode.REPEAT, PlortSampler.AddressMode.REPEAT);
+            this.sampler = new PlortSampler(device, PlortFilter.LINEAR, PlortFilter.LINEAR, PlortSampler.AddressMode.REPEAT, PlortSampler.AddressMode.REPEAT, PlortSampler.AddressMode.REPEAT);
         }
     }
 
@@ -261,12 +263,8 @@ public class Atlas extends TrackedCloseable {
         return buffer;
     }
 
-    public long view() {
-        return this.atlas.view();
-    }
-
-    public long sampler() {
-        return this.sampler.handle();
+    public PlortTexture texture() {
+        return new PlortTexture(this.atlas, this.sampler);
     }
 
     public PlortBuffer bakedGlyphData() {

@@ -16,6 +16,10 @@ public class Vector2d {
         this.memory = arena.allocate(BYTES);
     }
 
+    public Vector2d() {
+        this(Arena.ofAuto());
+    }
+
     public Vector2d(Arena arena, double x, double y) {
         this(arena);
         this.x(x);

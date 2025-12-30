@@ -81,16 +81,17 @@ public class PlortCommandPool extends TrackedCloseable {
         return commandBuffers[index];
     }
 
-    public void transientSubmit(VkQueue queue, int index, Consumer<VkCommandBuffer> consumer) {
+    public void transientSubmit(VkQueue queue, int index, Consumer<PlortCommandBuffer> consumer) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             vkResetCommandBuffer(commandBuffers[index], 0);
             VkCommandBufferBeginInfo beginInfo = VkCommandBufferBeginInfo.calloc(stack)
                     .sType$Default()
                     .flags(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
-            VkUtil.check(vkBeginCommandBuffer(commandBuffers[index], beginInfo));
-            consumer.accept(commandBuffers[index]);
-            VkUtil.check(vkEndCommandBuffer(commandBuffers[index]));
+            try (PlortCommandBuffer cmdBuffer = new PlortCommandBuffer(commandBuffers[index])) {
+                cmdBuffer.begin(beginInfo);
+                consumer.accept(cmdBuffer);
+            }
 
             VkSubmitInfo submitInfo = VkSubmitInfo.calloc(stack)
                     .sType$Default()

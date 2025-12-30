@@ -1,7 +1,7 @@
 package net.flamgop.borked.renderer.pipeline;
 
+import net.flamgop.borked.renderer.PlortCommandBuffer;
 import net.flamgop.borked.renderer.PlortDevice;
-import net.flamgop.borked.renderer.descriptor.PlortDescriptorSetLayout;
 import net.flamgop.borked.renderer.renderpass.PlortRenderPass;
 import net.flamgop.borked.renderer.memory.TrackedCloseable;
 import net.flamgop.borked.renderer.util.VkUtil;
@@ -10,7 +10,6 @@ import org.lwjgl.vulkan.*;
 
 import java.nio.LongBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import static org.lwjgl.vulkan.EXTDebugUtils.vkSetDebugUtilsObjectNameEXT;
@@ -19,7 +18,7 @@ import static org.lwjgl.vulkan.VK14.*;
 public class PlortPipeline extends TrackedCloseable {
     private final PlortDevice device;
 
-    private final long handle, pipelineLayout;
+    private final long handle;
 
     public static Builder builder(PlortDevice device, PlortRenderPass renderPass) {
         return new Builder(device, renderPass);
@@ -34,13 +33,12 @@ public class PlortPipeline extends TrackedCloseable {
         private final PlortRenderPass renderPass;
 
         private final List<PlortShaderStage> shaderStages = new ArrayList<>();
-        private final List<PlortPushConstant> pushConstants = new ArrayList<>();
         private final List<PlortBlendState> blendState = new ArrayList<>();
 
         private PlortDepthStencilState depthState = new PlortDepthStencilState();
         private PlortRasterizationState rasterizationState = new PlortRasterizationState();
 
-        private PlortDescriptorSetLayout[] descriptorSetLayouts = null;
+        private PlortPipelineLayout layout;
 
         Builder(PlortDevice device, PlortRenderPass renderPass) {
             this.device = device;
@@ -52,19 +50,14 @@ public class PlortPipeline extends TrackedCloseable {
             this.renderPass = null;
         }
 
-        public Builder descriptorSetLayouts(PlortDescriptorSetLayout... layouts) {
-            this.descriptorSetLayouts = layouts;
+        public Builder layout(PlortPipelineLayout layout) {
+            this.layout = layout;
             return this;
         }
 
         public Builder shaderStage(PlortShaderStage stage) {
             if (this.renderPass == null && !shaderStages.isEmpty()) throw new UnsupportedOperationException("Cannot add multiple shader stages to compute shader!");
             shaderStages.add(stage);
-            return this;
-        }
-
-        public Builder pushConstant(PlortPushConstant pushConstant) {
-            pushConstants.add(pushConstant);
             return this;
         }
 
@@ -87,20 +80,20 @@ public class PlortPipeline extends TrackedCloseable {
         }
 
         public PlortPipeline buildGraphics() {
-            if (descriptorSetLayouts == null) throw new NullPointerException("Pipelines require at least one descriptor set layout!");
+            if (layout == null) throw new NullPointerException("Pipelines require a layout!");
             if (renderPass == null) throw new UnsupportedOperationException("Cannot build a compute pipeline as a graphics pipeline!");
-            return new PlortPipeline(device, renderPass, shaderStages, pushConstants, rasterizationState, descriptorSetLayouts, blendState, depthState);
+            return new PlortPipeline(device, renderPass, shaderStages, layout, rasterizationState, blendState, depthState);
         }
 
         public PlortPipeline buildCompute() {
-            if (descriptorSetLayouts == null) throw new NullPointerException("Pipelines require at least one descriptor set layout");
+            if (layout == null) throw new NullPointerException("Pipelines require a layout!");
             if (renderPass != null) throw new UnsupportedOperationException("Cannot build a graphics pipeline as a compute pipeline!");
-            return new PlortPipeline(device, shaderStages.getFirst(), pushConstants, descriptorSetLayouts);
+            return new PlortPipeline(device, shaderStages.getFirst(), layout);
         }
     }
 
     @SuppressWarnings("resource")
-    public PlortPipeline(PlortDevice device, PlortShaderStage shaderStage, List<PlortPushConstant> pushConstants, PlortDescriptorSetLayout[] descriptorSetLayouts) {
+    public PlortPipeline(PlortDevice device, PlortShaderStage shaderStage, PlortPipelineLayout pipelineLayout) {
         this.device = device;
         try (MemoryStack stack = MemoryStack.stackPush()) {
             LongBuffer pOut = stack.callocLong(1);
@@ -111,27 +104,10 @@ public class PlortPipeline extends TrackedCloseable {
                     .module(shaderStage.module().handle())
                     .pName(stack.UTF8(shaderStage.entrypointName()));
 
-            VkPushConstantRange.Buffer pushConstantBuffer = VkPushConstantRange.calloc(pushConstants.size(), stack);
-            for (int i = 0; i < pushConstants.size(); i++) {
-                PlortPushConstant pushConstant = pushConstants.get(i);
-                pushConstantBuffer.get(i)
-                        .stageFlags(pushConstant.stageFlags())
-                        .offset(pushConstant.offset())
-                        .size(pushConstant.size());
-            }
-
-            VkPipelineLayoutCreateInfo pipelineLayoutInfo = VkPipelineLayoutCreateInfo.calloc(stack)
-                    .sType$Default()
-                    .pSetLayouts(stack.longs(Arrays.stream(descriptorSetLayouts).mapToLong(PlortDescriptorSetLayout::handle).toArray()))
-                    .pPushConstantRanges(!pushConstants.isEmpty() ? pushConstantBuffer : null);
-
-            VkUtil.check(vkCreatePipelineLayout(device.handle(), pipelineLayoutInfo, null, pOut));
-            this.pipelineLayout = pOut.get(0);
-
             VkComputePipelineCreateInfo.Buffer pipelineInfo = VkComputePipelineCreateInfo.calloc(1, stack)
                     .sType$Default()
                     .stage(shaderStageInfo)
-                    .layout(pipelineLayout);
+                    .layout(pipelineLayout.handle());
 
             VkUtil.check(vkCreateComputePipelines(device.handle(), VK_NULL_HANDLE, pipelineInfo, null, pOut));
             this.handle = pOut.get(0);
@@ -139,7 +115,7 @@ public class PlortPipeline extends TrackedCloseable {
     }
 
     @SuppressWarnings("resource")
-    public PlortPipeline(PlortDevice device, PlortRenderPass renderPass, List<PlortShaderStage> shaderStages, List<PlortPushConstant> pushConstants, PlortRasterizationState rasterizationState, PlortDescriptorSetLayout[] descriptorSetLayouts, List<PlortBlendState> blendStates, PlortDepthStencilState depthState) {
+    public PlortPipeline(PlortDevice device, PlortRenderPass renderPass, List<PlortShaderStage> shaderStages, PlortPipelineLayout pipelineLayout, PlortRasterizationState rasterizationState, List<PlortBlendState> blendStates, PlortDepthStencilState depthState) {
         super();
 
         if (shaderStages.stream().anyMatch(s -> s.stage() == PlortShaderStage.Stage.COMPUTE)) {
@@ -159,22 +135,7 @@ public class PlortPipeline extends TrackedCloseable {
                         .pName(stack.UTF8(shaderStage.entrypointName()));
             }
 
-            VkPushConstantRange.Buffer pushConstantBuffer = VkPushConstantRange.calloc(pushConstants.size(), stack);
-            for (int i = 0; i < pushConstants.size(); i++) {
-                PlortPushConstant pushConstant = pushConstants.get(i);
-                pushConstantBuffer.get(i)
-                        .stageFlags(pushConstant.stageFlags())
-                        .offset(pushConstant.offset())
-                        .size(pushConstant.size());
-            }
 
-            VkPipelineLayoutCreateInfo pipelineLayoutInfo = VkPipelineLayoutCreateInfo.calloc(stack)
-                    .sType$Default()
-                    .pSetLayouts(stack.longs(Arrays.stream(descriptorSetLayouts).mapToLong(PlortDescriptorSetLayout::handle).toArray()))
-                    .pPushConstantRanges(!pushConstants.isEmpty() ? pushConstantBuffer : null);
-
-            VkUtil.check(vkCreatePipelineLayout(device.handle(), pipelineLayoutInfo, null, pOut));
-            this.pipelineLayout = pOut.get(0);
 
             VkPipelineMultisampleStateCreateInfo multisampleStateInfo = VkPipelineMultisampleStateCreateInfo.calloc(stack)
                     .sType$Default()
@@ -251,7 +212,7 @@ public class PlortPipeline extends TrackedCloseable {
                     .pViewportState(viewportStateInfo)
                     .pColorBlendState(colorBlendStateInfo)
                     .pDepthStencilState(depthStencilStateInfo)
-                    .layout(pipelineLayout);
+                    .layout(pipelineLayout.handle());
 
             VkUtil.check(vkCreateGraphicsPipelines(device.handle(), VK_NULL_HANDLE, pipelineInfo, null, pOut));
             this.handle = pOut.get(0);
@@ -270,22 +231,17 @@ public class PlortPipeline extends TrackedCloseable {
         }
     }
 
-    public long layout() {
-        return pipelineLayout;
-    }
-
     public long handle() {
         return handle;
     }
 
-    public void bind(VkCommandBuffer commandBuffer, PipelineBindPoint bindPoint) {
-        vkCmdBindPipeline(commandBuffer, bindPoint.vkQualifier, handle);
+    public void bind(PlortCommandBuffer commandBuffer, PipelineBindPoint bindPoint) {
+        commandBuffer.bindPipeline(bindPoint, this);
     }
 
     @Override
     public void close() {
         vkDestroyPipeline(device.handle(), handle, null);
-        vkDestroyPipelineLayout(device.handle(), pipelineLayout, null);
         super.close();
     }
 }

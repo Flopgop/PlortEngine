@@ -1,5 +1,6 @@
 package net.flamgop.borked.renderer.model;
 
+import net.flamgop.borked.renderer.PlortCommandBuffer;
 import net.flamgop.borked.renderer.descriptor.PlortBufferedDescriptorSetPool;
 import net.flamgop.borked.renderer.PlortEngine;
 import net.flamgop.borked.renderer.descriptor.PlortDescriptor;
@@ -203,14 +204,14 @@ public class PlortModel implements AutoCloseable {
         }
     }
 
-    public void submit(VkCommandBuffer cmdBuffer, PlortPipeline pipeline, PlortBuffer instanceBuffer, int instanceCount, int currentFrameModInFlight) {
+    public void submit(PlortCommandBuffer cmdBuffer, PlortPipelineLayout layout, PlortBuffer instanceBuffer, int instanceCount, int currentFrameModInFlight) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             ByteBuffer push = stack.calloc(4 * Long.BYTES);
             for (PlortMesh mesh : meshes) {
                 if (materialMappings.containsKey(mesh)) {
                     long descriptor = descriptorSets.descriptorSet(currentFrameModInFlight, materialMappings.get(mesh));
 
-                    vkCmdBindDescriptorSets(cmdBuffer, PipelineBindPoint.GRAPHICS.qualifier(), pipeline.layout(), 0, stack.longs(descriptor), null);
+                    cmdBuffer.bindDescriptorSets(PipelineBindPoint.GRAPHICS, layout, 0, stack.longs(descriptor), null);
                 }
 
                 push.putLong(mesh.vertexBuffer().deviceAddress());
@@ -219,7 +220,7 @@ public class PlortModel implements AutoCloseable {
                 push.putLong(instanceBuffer.deviceAddress());
                 push.flip();
 
-                vkCmdPushConstants(cmdBuffer, pipeline.layout(), PlortShaderStage.Stage.ALL.bit(), 0, push);
+                cmdBuffer.pushConstants(layout, PlortShaderStage.Stage.ALL.bit(), 0, push);
                 mesh.recordDrawCommandInstanced(cmdBuffer, instanceCount);
             }
         }

@@ -3,6 +3,7 @@ package net.flamgop.borked;
 import net.flamgop.borked.math.Quaternionf;
 import net.flamgop.borked.math.Vector2f;
 import net.flamgop.borked.math.Vector3i;
+import net.flamgop.borked.renderer.PlortCommandBuffer;
 import net.flamgop.borked.renderer.descriptor.*;
 import net.flamgop.borked.renderer.PlortEngine;
 import net.flamgop.borked.renderer.model.PlortModel;
@@ -49,6 +50,7 @@ public class Game {
     private final PlortShaderModule meshModule;
     private final PlortDescriptorSetLayout meshLayout;
     private final PlortBufferedDescriptorSetPool meshDescriptors;
+    private final PlortPipelineLayout meshPipelineLayout;
     private final PlortPipeline meshPipeline;
 
     private final PlortTexture noiseTexture;
@@ -57,6 +59,7 @@ public class Game {
     private final PlortShaderModule ssaoModule;
     private final PlortDescriptorSetLayout ssaoLayout;
     private final PlortBufferedDescriptorSetPool ssaoDescriptors;
+    private final PlortPipelineLayout ssaoPipelineLayout;
     private final PlortPipeline ssaoPipeline;
 
     private final CameraController cameraController;
@@ -148,11 +151,14 @@ public class Game {
         );
         this.meshDescriptors = new PlortBufferedDescriptorSetPool(engine.device(), meshLayout, 1, engine.swapchain().imageCount());
 
+        this.meshPipelineLayout = PlortPipelineLayout.builder(engine.device())
+                .pushConstant(new PlortPushConstant(0, 4 * Long.BYTES, PlortShaderStage.Stage.ALL.bit()))
+                .descriptorSetLayouts(meshLayout)
+                .build();
         this.meshPipeline = PlortPipeline.builder(engine.device(), gbuffer.renderPass())
                 .shaderStage(new PlortShaderStage(PlortShaderStage.Stage.MESH, meshModule, "meshMain"))
                 .shaderStage(new PlortShaderStage(PlortShaderStage.Stage.FRAGMENT, meshModule, "fragmentMain"))
-                .pushConstant(new PlortPushConstant(0, 4 * Long.BYTES, PlortShaderStage.Stage.ALL.bit()))
-                .descriptorSetLayouts(meshLayout)
+                .layout(meshPipelineLayout)
                 .blendState(PlortBlendState.disabled())
                 .blendState(PlortBlendState.disabled())
                 .blendState(PlortBlendState.disabled())
@@ -184,9 +190,12 @@ public class Game {
         );
         this.ssaoDescriptors = new PlortBufferedDescriptorSetPool(engine.device(), ssaoLayout, 1, engine.swapchain().imageCount());
 
+        this.ssaoPipelineLayout = PlortPipelineLayout.builder(engine.device())
+                .descriptorSetLayouts(ssaoLayout)
+                .build();
         this.ssaoPipeline = PlortPipeline.builder(engine.device())
                 .shaderStage(new PlortShaderStage(PlortShaderStage.Stage.COMPUTE, ssaoModule, "main"))
-                .descriptorSetLayouts(ssaoLayout)
+                .layout(ssaoPipelineLayout)
                 .buildCompute();
 
         this.ssaoTexture = new PlortTexture(
@@ -197,7 +206,7 @@ public class Game {
                         PlortImage.Layout.UNDEFINED, ImageUsage.STORAGE_BIT | ImageUsage.SAMPLED_BIT, 1,
                         SharingMode.EXCLUSIVE, MemoryUsage.GPU_ONLY, PlortImage.ViewType.TYPE_2D, AspectMask.COLOR_BIT
                         ),
-                new PlortSampler(engine.device(), PlortSampler.Filter.NEAREST, PlortSampler.Filter.NEAREST, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE)
+                new PlortSampler(engine.device(), PlortFilter.NEAREST, PlortFilter.NEAREST, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE)
         );
 
         this.entities.add(new Entity(new PlortModel(engine, "ssao_test.glb"), engine.allocator()));
@@ -246,13 +255,15 @@ public class Game {
         entities.forEach(e -> e.model().setViewBuffer(engine, cameraController.viewBuffer(), currentFrameModInFlight));
     }
 
-    private void submitDeferred(VkCommandBuffer cmdBuffer, double deltaTime, int imageIndex, int currentFrameModInFlight) {
+    private void submitDeferred(PlortCommandBuffer cmdBuffer, double deltaTime, int imageIndex, int currentFrameModInFlight) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             meshPipeline.bind(cmdBuffer, PipelineBindPoint.GRAPHICS);
 
-            double time = (GLFW.glfwGetTime() % Math.TAU);
-            entities.getFirst().rotation(new Quaternionf(0f, (float) Math.sin(time / 2), 0f, (float) Math.cos(time / 2)).normalize());
-            entities.forEach(e -> e.submit(cmdBuffer, meshPipeline, currentFrameModInFlight));
+            entities.getFirst().modifyTransform(
+                    t -> t
+                            .rotate(new Quaternionf(0f, (float) Math.sin(deltaTime / 2), 0f, (float) Math.cos(deltaTime / 2)).normalize())
+            );
+            entities.forEach(e -> e.submit(cmdBuffer, meshPipelineLayout, currentFrameModInFlight));
         }
     }
 
@@ -269,7 +280,7 @@ public class Game {
         ));
     }
 
-    private void submitShading(VkCommandBuffer cmdBuffer, double deltaTime, int imageIndex, int currentFrameModInFlight) {
+    private void submitShading(PlortCommandBuffer cmdBuffer, double deltaTime, int imageIndex, int currentFrameModInFlight) {
         gbuffer.submitShadingPass(cmdBuffer, currentFrameModInFlight);
 
         textBuffers.replace(imageIndex, atlas.buildTextBuffer(List.of(
@@ -281,7 +292,7 @@ public class Game {
         textRenderer.renderTextBuffer(cmdBuffer, textBuffers.get(imageIndex), imageIndex);
     }
 
-    private void computeSSAO(VkCommandBuffer cmdBuffer, int currentFrameModInFlight, int imageIndex) {
+    private void computeSSAO(PlortCommandBuffer cmdBuffer, int currentFrameModInFlight, int imageIndex) {
         engine.device().writeDescriptorSets(List.of(
                 new TextureDescriptorWrite(new PlortTexture[]{gbuffer.positionTexture(imageIndex)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 0, ssaoDescriptors.descriptorSet(currentFrameModInFlight, 0)),
                 new TextureDescriptorWrite(new PlortTexture[]{gbuffer.normalTexture(imageIndex)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 1, ssaoDescriptors.descriptorSet(currentFrameModInFlight, 0)),
@@ -299,11 +310,11 @@ public class Game {
             );
 
             ssaoPipeline.bind(cmdBuffer, PipelineBindPoint.COMPUTE);
-            vkCmdBindDescriptorSets(cmdBuffer, PipelineBindPoint.COMPUTE.qualifier(), ssaoPipeline.layout(), 0, stack.longs(ssaoDescriptors.descriptorSet(currentFrameModInFlight, 0)), null);
+            cmdBuffer.bindDescriptorSets(PipelineBindPoint.COMPUTE, ssaoPipelineLayout, 0, stack.longs(ssaoDescriptors.descriptorSet(currentFrameModInFlight, 0)), null);
 
             int groupsX = (engine.swapchain().extent().x() + 8 - 1) / 8;
             int groupsY = (engine.swapchain().extent().y() + 8 - 1) / 8;
-            vkCmdDispatch(cmdBuffer, groupsX, groupsY, 1);
+            cmdBuffer.dispatch(groupsX, groupsY, 1);
 
             ssaoTexture.image().transitionLayout(
                     cmdBuffer,
@@ -334,43 +345,40 @@ public class Game {
 
             cameraController.update((float) deltaTime);
 
-            VkCommandBuffer cmdBuffer = engine.drawBuffer(imageIndex);
+            try (PlortCommandBuffer cmdBuffer = new PlortCommandBuffer(engine.drawBuffer(imageIndex))) {
+                cmdBuffer.begin(beginInfo);
+                cmdBuffer.setViewport(0, viewport);
+                cmdBuffer.setScissor(0, scissor);
 
-            vkBeginCommandBuffer(cmdBuffer, beginInfo);
+                VkClearValue.Buffer gClearValues = VkClearValue.calloc(4, stack);
+                gClearValues.get(0).color().float32(0, 0).float32(1, 0).float32(2, 0).float32(3, 0);
+                gClearValues.get(1).color().float32(0, 0).float32(1, 0).float32(2, 0).float32(3, 0);
+                gClearValues.get(2).color().float32(0, 0).float32(1, 0).float32(2, 0).float32(3, 0);
+                gClearValues.get(3).depthStencil().depth(1.0f).stencil(0);
 
-            vkCmdSetViewport(cmdBuffer, 0, viewport);
-            vkCmdSetScissor(cmdBuffer, 0, scissor);
+                updateDescriptorsDeferred(currentFrameModInFlight, imageIndex);
 
-            VkClearValue.Buffer gClearValues = VkClearValue.calloc(4, stack);
-            gClearValues.get(0).color().float32(0, 0).float32(1, 0).float32(2, 0).float32(3, 0);
-            gClearValues.get(1).color().float32(0, 0).float32(1, 0).float32(2, 0).float32(3, 0);
-            gClearValues.get(2).color().float32(0, 0).float32(1, 0).float32(2, 0).float32(3, 0);
-            gClearValues.get(3).depthStencil().depth(1.0f).stencil(0);
+                gbuffer.beginSubmitPass(cmdBuffer, gClearValues, imageIndex);
 
-            updateDescriptorsDeferred(currentFrameModInFlight, imageIndex);
+                submitDeferred(cmdBuffer, deltaTime, imageIndex, currentFrameModInFlight);
 
-            gbuffer.beginSubmitPass(cmdBuffer, gClearValues, imageIndex);
+                gbuffer.endSubmitPass(cmdBuffer);
 
-            submitDeferred(cmdBuffer, deltaTime, imageIndex, currentFrameModInFlight);
+                VkClearValue.Buffer clearValues = VkClearValue.calloc(2, stack);
+                clearValues.get(0).color().float32(0, 0.0595f).float32(1, 0.0595f).float32(2, 0.0595f).float32(3, 1);
+                clearValues.get(1).depthStencil().depth(1.0f).stencil(0);
 
-            gbuffer.endSubmitPass(cmdBuffer);
+                gbuffer.transitionImagesForShading(cmdBuffer, imageIndex);
+                computeSSAO(cmdBuffer, currentFrameModInFlight, imageIndex);
+                updateDescriptorsShading(currentFrameModInFlight, imageIndex);
 
-            VkClearValue.Buffer clearValues = VkClearValue.calloc(2, stack);
-            clearValues.get(0).color().float32(0, 0.0595f).float32(1, 0.0595f).float32(2, 0.0595f).float32(3, 1);
-            clearValues.get(1).depthStencil().depth(1.0f).stencil(0);
+                mainRenderPass.begin(cmdBuffer, clearValues, imageIndex);
 
-            gbuffer.transitionImagesForShading(cmdBuffer, imageIndex);
-            computeSSAO(cmdBuffer, currentFrameModInFlight, imageIndex);
-            updateDescriptorsShading(currentFrameModInFlight, imageIndex);
+                submitShading(cmdBuffer, deltaTime, imageIndex, currentFrameModInFlight);
 
-            mainRenderPass.begin(cmdBuffer, clearValues, imageIndex);
-
-            submitShading(cmdBuffer, deltaTime, imageIndex, currentFrameModInFlight);
-
-            mainRenderPass.end(cmdBuffer);
-            gbuffer.transitionImagesForSubmit(cmdBuffer, imageIndex);
-
-            vkEndCommandBuffer(cmdBuffer);
+                mainRenderPass.end(cmdBuffer);
+                gbuffer.transitionImagesForSubmit(cmdBuffer, imageIndex);
+            }
         }
     }
 
@@ -394,7 +402,7 @@ public class Game {
                         PlortImage.Layout.UNDEFINED, ImageUsage.STORAGE_BIT | ImageUsage.SAMPLED_BIT, 1,
                         SharingMode.EXCLUSIVE, MemoryUsage.GPU_ONLY, PlortImage.ViewType.TYPE_2D, AspectMask.COLOR_BIT
                 ),
-                new PlortSampler(engine.device(), PlortSampler.Filter.LINEAR, PlortSampler.Filter.LINEAR, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE)
+                new PlortSampler(engine.device(), PlortFilter.LINEAR, PlortFilter.LINEAR, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE)
         );
         try (MappedMemory mem = metaBuffer.map()) {
             mem.putInt(engine.swapchain().extent().x());
@@ -414,12 +422,14 @@ public class Game {
         cameraController.close();
 
         meshPipeline.close();
+        meshPipelineLayout.close();
         meshLayout.close();
         meshDescriptors.close();
         meshModule.close();
 
         ssaoTexture.close();
         ssaoPipeline.close();
+        ssaoPipelineLayout.close();
         ssaoLayout.close();
         ssaoDescriptors.close();
         ssaoModule.close();

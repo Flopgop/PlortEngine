@@ -16,6 +16,10 @@ public class Vector3f {
         this.memory = arena.allocate(BYTES);
     }
 
+    public Vector3f() {
+        this(Arena.ofAuto());
+    }
+
     public Vector3f(Arena arena, float x, float y, float z) {
         this(arena);
         this.x(x);
@@ -27,8 +31,12 @@ public class Vector3f {
         this(Arena.ofAuto(), x, y, z);
     }
 
+    public Vector3f(Arena arena, Vector3f vector3f) {
+        this(arena, vector3f.x(), vector3f.y(), vector3f.z());
+    }
+
     public Vector3f(Vector3f vector3f) {
-        this(vector3f.x(), vector3f.y(), vector3f.z());
+        this(Arena.ofAuto(), vector3f);
     }
 
     public Vector3f(float v) {

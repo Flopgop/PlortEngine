@@ -1,5 +1,6 @@
 package net.flamgop.borked.renderer.renderpass;
 
+import net.flamgop.borked.renderer.PlortCommandBuffer;
 import net.flamgop.borked.renderer.PlortDevice;
 import net.flamgop.borked.renderer.memory.TrackedCloseable;
 import net.flamgop.borked.renderer.pipeline.PipelineBindPoint;
@@ -101,7 +102,7 @@ public class PlortRenderPass extends TrackedCloseable {
         }
     }
 
-    public void begin(VkCommandBuffer commandBuffer, VkClearValue.Buffer clearValues, int imageIndex) {
+    public void begin(PlortCommandBuffer commandBuffer, VkClearValue.Buffer clearValues, int imageIndex) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkRenderPassBeginInfo renderPassInfo = VkRenderPassBeginInfo.calloc(stack)
                     .sType$Default()
@@ -110,12 +111,12 @@ public class PlortRenderPass extends TrackedCloseable {
                     .renderArea(a -> a.offset(o -> o.set(0, 0)).extent(e -> e.set(width, height)))
                     .pClearValues(clearValues);
 
-            vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+            commandBuffer.beginRenderPass(renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
         }
     }
 
-    public void end(VkCommandBuffer commandBuffer) {
-        vkCmdEndRenderPass(commandBuffer);
+    public void end(PlortCommandBuffer commandBuffer) {
+        commandBuffer.endRenderPass();
     }
 
     public void recreate(int width, int height) {

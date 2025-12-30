@@ -17,20 +17,6 @@ import static org.lwjgl.vulkan.VK10.VK_SAMPLER_ADDRESS_MODE_REPEAT;
 
 public class PlortSampler extends TrackedCloseable {
 
-    public enum Filter {
-        NEAREST(VK_FILTER_NEAREST),
-        LINEAR(VK_FILTER_LINEAR),
-
-        ;
-        final int vkQualifier;
-        Filter(int vkQualifier) {
-            this.vkQualifier = vkQualifier;
-        }
-        public int qualifier() {
-            return vkQualifier;
-        }
-    }
-
     public enum AddressMode {
         REPEAT(VK_SAMPLER_ADDRESS_MODE_REPEAT),
         MIRRORED_REPEAT(VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT),
@@ -52,7 +38,7 @@ public class PlortSampler extends TrackedCloseable {
 
     public PlortSampler(
             PlortDevice device,
-            Filter minFilter, Filter magFilter,
+            PlortFilter minFilter, PlortFilter magFilter,
             AddressMode addressModeU, AddressMode addressModeV, AddressMode addressModeW
     ) {
         super();

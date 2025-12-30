@@ -1,6 +1,7 @@
 package net.flamgop.borked;
 
 import net.flamgop.borked.math.Vector3i;
+import net.flamgop.borked.renderer.PlortCommandBuffer;
 import net.flamgop.borked.renderer.descriptor.PlortBufferedDescriptorSetPool;
 import net.flamgop.borked.renderer.PlortEngine;
 import net.flamgop.borked.renderer.descriptor.PlortDescriptor;
@@ -27,6 +28,7 @@ public class GBuffer implements AutoCloseable {
     private final PlortShaderModule gbufferModule;
     private final PlortDescriptorSetLayout gbufferLayout;
     private final PlortBufferedDescriptorSetPool gbufferDescriptors;
+    private final PlortPipelineLayout gbufferPipelineLayout;
     private final PlortPipeline gbufferPipeline;
 
     private final PlortImage[] gPositionImages;
@@ -124,7 +126,7 @@ public class GBuffer implements AutoCloseable {
         gbufferRenderPass.recreate(engine.swapchain().extent().x(), engine.swapchain().extent().y());
         gbufferRenderPass.label("G-Buffer");
 
-        this.gbufferSampler = new PlortSampler(engine.device(), PlortSampler.Filter.NEAREST, PlortSampler.Filter.NEAREST, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE);
+        this.gbufferSampler = new PlortSampler(engine.device(), PlortFilter.NEAREST, PlortFilter.NEAREST, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE);
 
         ByteBuffer gbufferCode = ResourceHelper.loadFromResource("assets/shaders/gbuffer.spv");
         this.gbufferModule = new PlortShaderModule(engine.device(), gbufferCode);
@@ -144,10 +146,13 @@ public class GBuffer implements AutoCloseable {
         );
         this.gbufferDescriptors = new PlortBufferedDescriptorSetPool(engine.device(), gbufferLayout, 1, engine.swapchain().imageCount());
 
+        this.gbufferPipelineLayout = PlortPipelineLayout.builder(engine.device())
+                .descriptorSetLayouts(gbufferLayout)
+                .build();
         this.gbufferPipeline = PlortPipeline.builder(engine.device(), mainRenderPass)
                 .shaderStage(new PlortShaderStage(PlortShaderStage.Stage.MESH, gbufferModule, "meshMain"))
                 .shaderStage(new PlortShaderStage(PlortShaderStage.Stage.FRAGMENT, gbufferModule, "fragmentMain"))
-                .descriptorSetLayouts(gbufferLayout)
+                .layout(gbufferPipelineLayout)
                 .blendState(PlortBlendState.disabled())
                 .buildGraphics();
     }
@@ -196,18 +201,17 @@ public class GBuffer implements AutoCloseable {
         return this.gbufferDescriptors;
     }
 
-    public void submitShadingPass(VkCommandBuffer cmdBuffer, int currentFrameModInFlight) {
+    public void submitShadingPass(PlortCommandBuffer cmdBuffer, int currentFrameModInFlight) {
         try (MemoryStack stack =  MemoryStack.stackPush()) {
             gbufferPipeline.bind(cmdBuffer, PipelineBindPoint.GRAPHICS);
             long gbufferDescriptor = gbufferDescriptors.descriptorSet(currentFrameModInFlight, 0);
 
-            vkCmdBindDescriptorSets(cmdBuffer, PipelineBindPoint.GRAPHICS.qualifier(), gbufferPipeline.layout(), 0, stack.longs(gbufferDescriptor), null);
-
-            vkCmdDrawMeshTasksEXT(cmdBuffer, 1, 1, 1);
+            cmdBuffer.bindDescriptorSets(PipelineBindPoint.GRAPHICS, gbufferPipelineLayout, 0, stack.longs(gbufferDescriptor), null);
+            cmdBuffer.drawMeshTasksEXT(1,1,1);
         }
     }
 
-    public void transitionImagesForSubmit(VkCommandBuffer cmdBuffer, int imageIndex) {
+    public void transitionImagesForSubmit(PlortCommandBuffer cmdBuffer, int imageIndex) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkImageMemoryBarrier.Buffer barriers = VkImageMemoryBarrier.calloc(4, stack);
             gPositionImages[imageIndex].transitionLayout(
@@ -231,12 +235,12 @@ public class GBuffer implements AutoCloseable {
                     VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
             );
 
-            vkCmdPipelineBarrier(cmdBuffer, PipelineStage.FRAGMENT_SHADER_BIT, PipelineStage.COLOR_ATTACHMENT_OUTPUT_BIT, 0, null, null, barriers.slice(0, 3));
-            vkCmdPipelineBarrier(cmdBuffer, PipelineStage.FRAGMENT_SHADER_BIT, PipelineStage.LATE_FRAGMENT_TESTS_BIT, 0, null, null, barriers.slice(3, 1));
+            cmdBuffer.pipelineBarrier(PipelineStage.FRAGMENT_SHADER_BIT, PipelineStage.COLOR_ATTACHMENT_OUTPUT_BIT, 0, null, null, barriers.slice(0, 3));
+            cmdBuffer.pipelineBarrier(PipelineStage.FRAGMENT_SHADER_BIT, PipelineStage.LATE_FRAGMENT_TESTS_BIT, 0, null, null, barriers.slice(3, 1));
         }
     }
 
-    public void transitionImagesForShading(VkCommandBuffer cmdBuffer, int imageIndex) {
+    public void transitionImagesForShading(PlortCommandBuffer cmdBuffer, int imageIndex) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkImageMemoryBarrier.Buffer barriers = VkImageMemoryBarrier.calloc(4, stack);
             gPositionImages[imageIndex].transitionLayout(
@@ -260,16 +264,16 @@ public class GBuffer implements AutoCloseable {
                     VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT
             );
 
-            vkCmdPipelineBarrier(cmdBuffer, PipelineStage.COLOR_ATTACHMENT_OUTPUT_BIT, PipelineStage.FRAGMENT_SHADER_BIT | PipelineStage.COMPUTE_SHADER_BIT, 0, null, null, barriers.slice(0, 3));
-            vkCmdPipelineBarrier(cmdBuffer, PipelineStage.LATE_FRAGMENT_TESTS_BIT, PipelineStage.FRAGMENT_SHADER_BIT | PipelineStage.COMPUTE_SHADER_BIT, 0, null, null, barriers.slice(3, 1));
+            cmdBuffer.pipelineBarrier(PipelineStage.COLOR_ATTACHMENT_OUTPUT_BIT, PipelineStage.FRAGMENT_SHADER_BIT | PipelineStage.COMPUTE_SHADER_BIT, 0, null, null, barriers.slice(0, 3));
+            cmdBuffer.pipelineBarrier(PipelineStage.LATE_FRAGMENT_TESTS_BIT, PipelineStage.FRAGMENT_SHADER_BIT | PipelineStage.COMPUTE_SHADER_BIT, 0, null, null, barriers.slice(3, 1));
         }
     }
 
-    public void beginSubmitPass(VkCommandBuffer cmdBuffer, VkClearValue.Buffer clearValues, int imageIndex) {
+    public void beginSubmitPass(PlortCommandBuffer cmdBuffer, VkClearValue.Buffer clearValues, int imageIndex) {
         gbufferRenderPass.begin(cmdBuffer, clearValues, imageIndex);
     }
 
-    public void endSubmitPass(VkCommandBuffer cmdBuffer) {
+    public void endSubmitPass(PlortCommandBuffer cmdBuffer) {
         gbufferRenderPass.end(cmdBuffer);
     }
 
@@ -280,6 +284,7 @@ public class GBuffer implements AutoCloseable {
     @Override
     public void close() {
         gbufferPipeline.close();
+        gbufferPipelineLayout.close();
         gbufferDescriptors.close();
         gbufferLayout.close();
         gbufferModule.close();

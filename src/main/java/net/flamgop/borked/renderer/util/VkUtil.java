@@ -1,5 +1,6 @@
 package net.flamgop.borked.renderer.util;
 
+import net.flamgop.borked.renderer.PlortCommandBuffer;
 import net.flamgop.borked.renderer.exception.VulkanException;
 import net.flamgop.borked.renderer.image.AspectMask;
 import net.flamgop.borked.renderer.image.PlortImage;
@@ -8,7 +9,6 @@ import net.flamgop.borked.renderer.pipeline.PipelineStage;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VK10;
 import org.lwjgl.vulkan.VkBufferImageCopy;
-import org.lwjgl.vulkan.VkCommandBuffer;
 
 import static org.lwjgl.vulkan.EXTBufferDeviceAddress.VK_ERROR_INVALID_DEVICE_ADDRESS_EXT;
 import static org.lwjgl.vulkan.EXTDebugReport.VK_ERROR_VALIDATION_FAILED_EXT;
@@ -104,7 +104,7 @@ public class VkUtil {
         }
     }
 
-    public static void copyBufferToImage(VkCommandBuffer cmdBuffer, PlortBuffer data, PlortImage image, int width, int height) {
+    public static void copyBufferToImage(PlortCommandBuffer cmdBuffer, PlortBuffer data, PlortImage image, int width, int height) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             image.transitionLayout(
                     cmdBuffer,
@@ -128,7 +128,7 @@ public class VkUtil {
                     .imageOffset(o -> o.set(0, 0, 0))
                     .imageExtent(e -> e.set(width, height, 1));
 
-            vkCmdCopyBufferToImage(cmdBuffer, data.handle(), image.handle(), PlortImage.Layout.TRANSFER_DST_OPTIMAL.qualifier(), region);
+            cmdBuffer.copyBufferToImage(data, image, PlortImage.Layout.TRANSFER_DST_OPTIMAL, region);
 
             image.transitionLayout(
                     cmdBuffer,

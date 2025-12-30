@@ -12,6 +12,14 @@ public class Matrix4f {
     public static final int BYTES = 16 * Float.BYTES;
     private static final ValueLayout.OfFloat F32 = ValueLayout.JAVA_FLOAT;
 
+    public static Matrix4f fromQuaternion(Arena arena, Quaternionf q) {
+        return new Matrix4f(arena).rotation(q);
+    }
+
+    public static Matrix4f fromQuaternion(Quaternionf q) {
+        return fromQuaternion(Arena.ofAuto(), q);
+    }
+
     private static final long M00 = 0;
     private static final long M01 = 4;
     private static final long M02 = 8;
@@ -40,9 +48,13 @@ public class Matrix4f {
         this(Arena.ofAuto());
     }
 
-    public Matrix4f(Matrix4f other) {
-        this(Arena.ofAuto());
+    public Matrix4f(Arena arena, Matrix4f other) {
+        this(arena);
         this.memory.copyFrom(other.memory);
+    }
+
+    public Matrix4f(Matrix4f other) {
+        this(Arena.ofAuto(), other);
     }
 
     @ApiStatus.Internal // not bounds checked
@@ -132,6 +144,7 @@ public class Matrix4f {
         return this;
     }
 
+    /// equivalent to this = this * right
     public Matrix4f multiply(Matrix4f right) {
         float a00 = this.m00(), a10 = this.m10(), a20 = this.m20(), a30 = this.m30();
         float a01 = this.m01(), a11 = this.m11(), a21 = this.m21(), a31 = this.m31();
@@ -252,6 +265,10 @@ public class Matrix4f {
 
     public Matrix4f translation(float x, float y, float z) {
         this.setIdentity();
+        return setTranslation(x,y,z);
+    }
+
+    public Matrix4f setTranslation(float x, float y, float z) {
         this.m30(x);
         this.m31(y);
         this.m32(z);
@@ -259,7 +276,19 @@ public class Matrix4f {
         return this;
     }
 
+    public Matrix4f translate(float x, float y, float z) {
+        this.m30(m30() + x);
+        this.m31(m31() + y);
+        this.m32(m32() + z);
+        return this;
+    }
+
     public Matrix4f rotation(Quaternionf rotation) {
+        this.setIdentity();
+        return setRotation(rotation);
+    }
+
+    public Matrix4f setRotation(Quaternionf rotation) {
         float w = rotation.w(), x = rotation.x(), y = rotation.y(), z = rotation.z();
         float w2 = w * w;
         float x2 = x * x;
@@ -272,7 +301,6 @@ public class Matrix4f {
         float yz = y * z, dyz = yz + yz;
         float xw = x * w, dxw = xw + xw;
 
-        this.setIdentity();
         this.m00(w2 + x2 - z2 - y2);
         this.m01(dxy + dzw);
         this.m02(dxz - dyw);
@@ -282,6 +310,36 @@ public class Matrix4f {
         this.m20(dyw + dxz);
         this.m21(dyz - dxw);
         this.m22(z2 - y2 - x2 + w2);
+
+        return this;
+    }
+
+    public Matrix4f rotate(Quaternionf rotation) {
+        Matrix4f rotationMatrix = new Matrix4f().rotation(rotation);
+        return this.multiply(rotationMatrix);
+    }
+
+    public Matrix4f transpose() {
+        float a10 = this.m10(), a20 = this.m20(), a30 = this.m30();
+        float a01 = this.m01(), a21 = this.m21(), a31 = this.m31();
+        float a02 = this.m02(), a12 = this.m12(), a32 = this.m32();
+        float a03 = this.m03(), a13 = this.m13(), a23 = this.m23();
+
+        this.m01(a10);
+        this.m02(a20);
+        this.m03(a30);
+
+        this.m10(a01);
+        this.m12(a21);
+        this.m13(a31);
+
+        this.m20(a02);
+        this.m21(a12);
+        this.m23(a32);
+
+        this.m30(a03);
+        this.m31(a13);
+        this.m32(a23);
 
         return this;
     }

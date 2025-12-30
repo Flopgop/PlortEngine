@@ -16,6 +16,10 @@ public class Quaternionf {
         this.memory = arena.allocate(BYTES);
     }
 
+    public Quaternionf() {
+        this(Arena.ofAuto());
+    }
+
     public Quaternionf(Arena arena, float x, float y, float z, float w) {
         this(arena);
         this.x(x);

@@ -1,6 +1,7 @@
 package net.flamgop.borked.renderer.model;
 
 import net.flamgop.borked.math.Vector3f;
+import net.flamgop.borked.renderer.PlortCommandBuffer;
 import net.flamgop.borked.renderer.memory.*;
 import org.lwjgl.assimp.*;
 import org.lwjgl.system.MemoryStack;
@@ -268,12 +269,12 @@ public class PlortMesh extends TrackedCloseable {
         return 3;
     }
 
-    public void recordDrawCommand(VkCommandBuffer commandBuffer) {
-        vkCmdDrawMeshTasksEXT(commandBuffer, meshletCount, 1, 1);
+    public void recordDrawCommand(PlortCommandBuffer commandBuffer) {
+        commandBuffer.drawMeshTasksEXT(meshletCount, 1, 1);
     }
 
-    public void recordDrawCommandInstanced(VkCommandBuffer commandBuffer, int numInstances) {
-        vkCmdDrawMeshTasksEXT(commandBuffer, meshletCount, numInstances, 1);
+    public void recordDrawCommandInstanced(PlortCommandBuffer commandBuffer, int numInstances) {
+        commandBuffer.drawMeshTasksEXT(meshletCount, numInstances, 1);
     }
 
     @Override

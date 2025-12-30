@@ -3,13 +3,16 @@ package net.flamgop.borked;
 import net.flamgop.borked.math.Matrix4f;
 import net.flamgop.borked.math.Quaternionf;
 import net.flamgop.borked.math.Vector3f;
+import net.flamgop.borked.renderer.PlortCommandBuffer;
 import net.flamgop.borked.renderer.memory.BufferUsage;
 import net.flamgop.borked.renderer.memory.MappedMemory;
 import net.flamgop.borked.renderer.memory.PlortAllocator;
 import net.flamgop.borked.renderer.memory.PlortBuffer;
 import net.flamgop.borked.renderer.model.PlortModel;
-import net.flamgop.borked.renderer.pipeline.PlortPipeline;
+import net.flamgop.borked.renderer.pipeline.PlortPipelineLayout;
 import org.lwjgl.vulkan.VkCommandBuffer;
+
+import java.util.function.Consumer;
 
 public class Entity implements AutoCloseable {
     private static final int INSTANCE_BUFFER_SIZE = 2 * Matrix4f.BYTES; // model, inverse_model
@@ -45,16 +48,21 @@ public class Entity implements AutoCloseable {
         transformDirty = true;
     }
 
+    public void modifyTransform(Consumer<Matrix4f> modifier) {
+        modifier.accept(transform);
+        transformDirty = true;
+    }
+
     public PlortModel model() {
         return model;
     }
 
-    public void submit(VkCommandBuffer cmdBuffer, PlortPipeline pipeline, int currentFrameModInFlight) {
+    public void submit(PlortCommandBuffer cmdBuffer, PlortPipelineLayout pipelineLayout, int currentFrameModInFlight) {
         if (transformDirty) {
             uploadTransform();
             transformDirty = false;
         }
-        model.submit(cmdBuffer, pipeline, instanceBuffer, 1, currentFrameModInFlight);
+        model.submit(cmdBuffer, pipelineLayout, instanceBuffer, 1, currentFrameModInFlight);
     }
 
     @Override

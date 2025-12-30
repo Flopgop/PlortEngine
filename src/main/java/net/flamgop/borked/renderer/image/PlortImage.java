@@ -1,6 +1,7 @@
 package net.flamgop.borked.renderer.image;
 
 import net.flamgop.borked.math.Vector3i;
+import net.flamgop.borked.renderer.PlortCommandBuffer;
 import net.flamgop.borked.renderer.memory.TrackedCloseable;
 import net.flamgop.borked.renderer.memory.MemoryUsage;
 import net.flamgop.borked.renderer.PlortDevice;
@@ -196,7 +197,7 @@ public class PlortImage extends TrackedCloseable {
     }
 
     public void transitionLayout(
-            VkCommandBuffer commandBuffer,
+            PlortCommandBuffer commandBuffer,
             Layout oldLayout,
             Layout newLayout,
             int srcStage,
@@ -208,7 +209,7 @@ public class PlortImage extends TrackedCloseable {
             VkImageMemoryBarrier.Buffer barrier = VkImageMemoryBarrier.calloc(1, stack);
             this.transitionLayout(barrier.get(0), oldLayout, newLayout, srcAccessMask, dstAccessMask);
 
-            vkCmdPipelineBarrier(commandBuffer, srcStage, dstStage, 0, null, null, barrier);
+            commandBuffer.pipelineBarrier(srcStage, dstStage, 0, null, null, barrier);
         }
     }
 
