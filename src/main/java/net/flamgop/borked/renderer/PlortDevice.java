@@ -9,8 +9,11 @@ import net.flamgop.borked.renderer.exception.VulkanException;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
+import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.util.List;
@@ -20,6 +23,74 @@ import static org.lwjgl.vulkan.KHRSurface.*;
 import static org.lwjgl.vulkan.VK13.*;
 
 public class PlortDevice extends TrackedCloseable {
+    private static final Logger LOGGER = LoggerFactory.getLogger(PlortDevice.class);
+
+    public static VkPhysicalDevice selectBestPhysicalDevice(PlortInstance instance) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            IntBuffer pDeviceCount = stack.callocInt(1);
+            VkUtil.check(vkEnumeratePhysicalDevices(instance.handle(), pDeviceCount, null));
+            int numDevices = pDeviceCount.get(0);
+            PointerBuffer pDevices = stack.callocPointer(numDevices);
+            VkUtil.check(vkEnumeratePhysicalDevices(instance.handle(), pDeviceCount, pDevices));
+            VkPhysicalDevice[] physicalDevices = new VkPhysicalDevice[numDevices];
+            for (int i = 0; i < numDevices; i++) {
+                physicalDevices[i] = new VkPhysicalDevice(pDevices.get(i), instance.handle());
+            }
+
+            int[] scores = new int[numDevices];
+            VkPhysicalDeviceProperties properties = VkPhysicalDeviceProperties.calloc(stack);
+            VkPhysicalDeviceMemoryProperties memoryProperties = VkPhysicalDeviceMemoryProperties.calloc(stack);
+            VkPhysicalDeviceFeatures2 features = VkPhysicalDeviceFeatures2.calloc(stack).sType$Default();
+            VkPhysicalDeviceMeshShaderFeaturesEXT meshFeatures = VkPhysicalDeviceMeshShaderFeaturesEXT.calloc(stack).sType$Default();
+            features.pNext(meshFeatures);
+            for (int i = 0; i < numDevices; i++) {
+                VkPhysicalDevice device = physicalDevices[i];
+                vkGetPhysicalDeviceProperties(device, properties);
+                if (properties.deviceType() == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) scores[i] += 1000;
+
+                vkGetPhysicalDeviceMemoryProperties(device, memoryProperties);
+                VkMemoryHeap.Buffer heaps = memoryProperties.memoryHeaps();
+                for (VkMemoryHeap heap : heaps) {
+                    if ((heap.flags() & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) != 0) {
+                        scores[i] += (int) ((heap.size() / 1024.0) / 1024.0); // MB
+                    }
+                }
+
+                try (MemoryStack stack2 = MemoryStack.stackPush()) {
+                    IntBuffer pCount = stack2.callocInt(1);
+                    vkEnumerateDeviceExtensionProperties(device, (ByteBuffer) null, pCount, null);
+                    int count = pCount.get(0);
+                    VkExtensionProperties.Buffer extensionProperties = VkExtensionProperties.calloc(count, stack2);
+                    vkEnumerateDeviceExtensionProperties(device, (ByteBuffer) null, pCount, extensionProperties);
+                    for (VkExtensionProperties extensionProps : extensionProperties) {
+                        if (extensionProps.extensionNameString().equals(EXTMeshShader.VK_EXT_MESH_SHADER_EXTENSION_NAME)) {
+                            LOGGER.debug("Device {} supports mesh shaders!", i);
+                            scores[i] += 10000;
+                            break;
+                        }
+                    }
+                }
+
+                vkGetPhysicalDeviceFeatures2(device, features);
+                if (!meshFeatures.meshShader() || !meshFeatures.taskShader()) {
+                    LOGGER.debug("Device {} doesn't support mesh and/or task shaders!", i);
+                    scores[i] = Integer.MIN_VALUE; // unsupported.
+                } else LOGGER.debug("Device {} supports mesh and task shaders!", i);
+            }
+            int highestScore = Integer.MIN_VALUE;
+            int highestScoreIndex = 0;
+            for (int i = 0; i < numDevices; i++) {
+                if (scores[i] > highestScore) {
+                    highestScore = scores[i];
+                    highestScoreIndex = i;
+                }
+            }
+            if (highestScore < 0) throw new VulkanException("No supported devices found!");
+            LOGGER.debug("Using device {}", highestScoreIndex);
+            return physicalDevices[highestScoreIndex];
+        }
+    }
+
     private final VkDevice handle;
 
     private final int graphicsQueueFamily, presentQueueFamily;

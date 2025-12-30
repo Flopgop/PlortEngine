@@ -14,9 +14,9 @@ import org.lwjgl.vulkan.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.nio.LongBuffer;
+import java.util.List;
 
 import static org.lwjgl.vulkan.EXTDebugUtils.*;
 import static org.lwjgl.vulkan.KHRSwapchain.*;
@@ -25,7 +25,7 @@ import static org.lwjgl.vulkan.VK14.*;
 public class PlortEngine implements AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(PlortEngine.class);
 
-    private final VkInstance instance;
+    private final PlortInstance instance;
     private final PlortDevice device;
     private final PlortAllocator allocator;
     private final PlortWindow window;
@@ -41,7 +41,7 @@ public class PlortEngine implements AutoCloseable {
         GLFW.glfwInit();
         if (!GLFWVulkan.glfwVulkanSupported()) throw new VulkanException("Vulkan is not supported on this platform!");
 
-        instance = createInstance(appName, appVersion);
+        instance = new PlortInstance(VK_API_VERSION_1_4, "Plort Engine", PlortInstance.makeVersion(1,0,0,0), appName, appVersion, List.of("VK_LAYER_KHRONOS_validation"), List.of(EXTDebugUtils.VK_EXT_DEBUG_UTILS_EXTENSION_NAME), true);
         window = new PlortWindow(instance, "Plort Engine", 1280, 720);
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkDebugUtilsMessengerCreateInfoEXT debugInfo = VkDebugUtilsMessengerCreateInfoEXT.calloc(stack)
@@ -51,11 +51,11 @@ public class PlortEngine implements AutoCloseable {
                     .pfnUserCallback(PlortEngine::printDebugOutput);
 
             LongBuffer pMessenger = stack.callocLong(1);
-            vkCreateDebugUtilsMessengerEXT(instance, debugInfo, null, pMessenger);
+            vkCreateDebugUtilsMessengerEXT(instance.handle(), debugInfo, null, pMessenger);
             this.debugMessenger = pMessenger.get(0);
         }
 
-        VkPhysicalDevice physicalDevice = selectBestPhysicalDevice(instance);
+        VkPhysicalDevice physicalDevice = PlortDevice.selectBestPhysicalDevice(instance);
         device = new PlortDevice(physicalDevice, window.surface());
         swapchain = new PlortSwapchain(device, window.surface());
 
@@ -228,72 +228,6 @@ public class PlortEngine implements AutoCloseable {
         }
     }
 
-    private static VkPhysicalDevice selectBestPhysicalDevice(VkInstance instance) {
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            IntBuffer pDeviceCount = stack.callocInt(1);
-            VkUtil.check(vkEnumeratePhysicalDevices(instance, pDeviceCount, null));
-            int numDevices = pDeviceCount.get(0);
-            PointerBuffer pDevices = stack.callocPointer(numDevices);
-            VkUtil.check(vkEnumeratePhysicalDevices(instance, pDeviceCount, pDevices));
-            VkPhysicalDevice[] physicalDevices = new VkPhysicalDevice[numDevices];
-            for (int i = 0; i < numDevices; i++) {
-                physicalDevices[i] = new VkPhysicalDevice(pDevices.get(i), instance);
-            }
-
-            int[] scores = new int[numDevices];
-            VkPhysicalDeviceProperties properties = VkPhysicalDeviceProperties.calloc(stack);
-            VkPhysicalDeviceMemoryProperties memoryProperties = VkPhysicalDeviceMemoryProperties.calloc(stack);
-            VkPhysicalDeviceFeatures2 features = VkPhysicalDeviceFeatures2.calloc(stack).sType$Default();
-            VkPhysicalDeviceMeshShaderFeaturesEXT meshFeatures = VkPhysicalDeviceMeshShaderFeaturesEXT.calloc(stack).sType$Default();
-            features.pNext(meshFeatures);
-            for (int i = 0; i < numDevices; i++) {
-                VkPhysicalDevice device = physicalDevices[i];
-                vkGetPhysicalDeviceProperties(device, properties);
-                if (properties.deviceType() == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) scores[i] += 1000;
-
-                vkGetPhysicalDeviceMemoryProperties(device, memoryProperties);
-                VkMemoryHeap.Buffer heaps = memoryProperties.memoryHeaps();
-                for (VkMemoryHeap heap : heaps) {
-                    if ((heap.flags() & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) != 0) {
-                        scores[i] += (int) ((heap.size() / 1024.0) / 1024.0); // MB
-                    }
-                }
-
-                try (MemoryStack stack2 = MemoryStack.stackPush()) {
-                    IntBuffer pCount = stack2.callocInt(1);
-                    vkEnumerateDeviceExtensionProperties(device, (ByteBuffer) null, pCount, null);
-                    int count = pCount.get(0);
-                    VkExtensionProperties.Buffer extensionProperties = VkExtensionProperties.calloc(count, stack2);
-                    vkEnumerateDeviceExtensionProperties(device, (ByteBuffer) null, pCount, extensionProperties);
-                    for (VkExtensionProperties extensionProps : extensionProperties) {
-                        if (extensionProps.extensionNameString().equals(EXTMeshShader.VK_EXT_MESH_SHADER_EXTENSION_NAME)) {
-                            LOGGER.debug("Device {} supports mesh shaders!", i);
-                            scores[i] += 10000;
-                            break;
-                        }
-                    }
-                }
-
-                vkGetPhysicalDeviceFeatures2(device, features);
-                if (!meshFeatures.meshShader() || !meshFeatures.taskShader()) {
-                    LOGGER.debug("Device {} doesn't support mesh and/or task shaders!", i);
-                    scores[i] = Integer.MIN_VALUE; // unsupported.
-                } else LOGGER.debug("Device {} supports mesh and task shaders!", i);
-            }
-            int highestScore = Integer.MIN_VALUE;
-            int highestScoreIndex = 0;
-            for (int i = 0; i < numDevices; i++) {
-                if (scores[i] > highestScore) {
-                    highestScore = scores[i];
-                    highestScoreIndex = i;
-                }
-            }
-            if (highestScore < 0) throw new VulkanException("No supported devices found!");
-            LOGGER.debug("Using device {}", highestScoreIndex);
-            return physicalDevices[highestScoreIndex];
-        }
-    }
-
     @Override
     public void close() {
         drawCommandPool.close();
@@ -301,7 +235,7 @@ public class PlortEngine implements AutoCloseable {
         window.close();
         allocator.close();
         device.close();
-        vkDestroyDebugUtilsMessengerEXT(instance, debugMessenger, null);
-        vkDestroyInstance(instance, null);
+        vkDestroyDebugUtilsMessengerEXT(instance.handle(), debugMessenger, null);
+        instance.close();
     }
 }

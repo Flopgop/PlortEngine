@@ -1,5 +1,6 @@
 package net.flamgop.borked.renderer.window;
 
+import net.flamgop.borked.renderer.PlortInstance;
 import net.flamgop.borked.renderer.util.VkUtil;
 import net.flamgop.borked.renderer.exception.VulkanException;
 import org.lwjgl.glfw.*;
@@ -12,14 +13,14 @@ import java.nio.LongBuffer;
 import static org.lwjgl.glfw.GLFW.*;
 
 public class PlortWindow implements AutoCloseable {
-    private final VkInstance instance;
+    private final PlortInstance instance;
     private final long handle, surface;
 
     private int width, height;
 
     private final PlortInput input;
 
-    public PlortWindow(VkInstance instance, String title, int width, int height) {
+    public PlortWindow(PlortInstance instance, String title, int width, int height) {
         this.instance = instance;
         this.width = Math.max(width, 320); this.height = Math.max(height, 180);
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -36,36 +37,11 @@ public class PlortWindow implements AutoCloseable {
         });
         if (prevCallback != null) prevCallback.close();
 
-        int platform = glfwGetPlatform();
-
         try (MemoryStack stack = MemoryStack.stackPush()) {
             LongBuffer ret = stack.callocLong(1);
-            surface = switch (platform) {
-                case GLFW_PLATFORM_WIN32 -> {
-                    VkWin32SurfaceCreateInfoKHR createInfo = VkWin32SurfaceCreateInfoKHR.calloc(stack)
-                            .sType$Default()
-                            .hwnd(GLFWNativeWin32.glfwGetWin32Window(handle))
-                            .hinstance(WindowsLibrary.HINSTANCE);
-                    VkUtil.check(KHRWin32Surface.vkCreateWin32SurfaceKHR(instance, createInfo, null, ret));
-                    yield ret.get(0);
-                }
-                case GLFW_PLATFORM_X11 -> {
-                    VkXlibSurfaceCreateInfoKHR createInfo = VkXlibSurfaceCreateInfoKHR.calloc(stack)
-                            .sType$Default()
-                            .window(GLFWNativeX11.glfwGetX11Window(handle));
-                    VkUtil.check(KHRXlibSurface.vkCreateXlibSurfaceKHR(instance, createInfo, null, ret));
-                    yield ret.get(0);
-                }
-                case GLFW_PLATFORM_WAYLAND -> {
-                    VkWaylandSurfaceCreateInfoKHR createInfo = VkWaylandSurfaceCreateInfoKHR.calloc(stack)
-                            .sType$Default()
-                            .surface(GLFWNativeWayland.glfwGetWaylandWindow(handle))
-                            .display(GLFWNativeWayland.glfwGetWaylandDisplay());
-                    VkUtil.check(KHRWaylandSurface.vkCreateWaylandSurfaceKHR(instance, createInfo, null, ret));
-                    yield ret.get(0);
-                }
-                default -> throw new VulkanException("Unsupported platform!");
-            };
+
+            VkUtil.check(GLFWVulkan.glfwCreateWindowSurface(instance.handle(), handle, null, ret));
+            surface = ret.get(0);
         }
     }
 
@@ -103,7 +79,7 @@ public class PlortWindow implements AutoCloseable {
 
     @Override
     public void close() {
-        KHRSurface.vkDestroySurfaceKHR(instance, surface, null);
+        KHRSurface.vkDestroySurfaceKHR(instance.handle(), surface, null);
         glfwDestroyWindow(handle);
     }
 }
