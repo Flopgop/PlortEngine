@@ -1,5 +1,6 @@
 package net.flamgop.borked;
 
+import net.flamgop.borked.math.AABB;
 import net.flamgop.borked.math.Matrix4f;
 import net.flamgop.borked.math.Quaternionf;
 import net.flamgop.borked.math.Vector3f;
@@ -22,9 +23,20 @@ public class Entity implements AutoCloseable {
     private final Matrix4f transform = new Matrix4f();
     private boolean transformDirty = true;
 
+    private final AABB aabb;
+
     public Entity(PlortModel model, PlortAllocator allocator) {
         this.model = model;
+        this.aabb = model.aabb();
         this.instanceBuffer = new PlortBuffer(INSTANCE_BUFFER_SIZE, BufferUsage.STORAGE_BUFFER_BIT, allocator);
+    }
+
+    public AABB aabb() {
+        return new AABB(aabb).translated(transform.position());
+    }
+
+    public Matrix4f transform() {
+        return transform;
     }
 
     public void uploadTransform() {

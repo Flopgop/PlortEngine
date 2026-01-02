@@ -30,11 +30,12 @@ public class Game {
         renderContext = new PlortRenderContext("Game", VkUtil.makeApiVersion(1,0,0,0));
 
         this.cameraController = new CameraController(renderContext.allocator(), renderContext.window(), 90, 0.1f);
-        this.world = new World();
+        this.world = new World(renderContext.allocator(), cameraController);
 
         this.renderer = new Renderer(renderContext, cameraController, world);
 
-        world.entities.add(new Entity(new PlortModel(renderContext, "big_test.glb"), renderContext.allocator()));
+        world.entities.add(new Entity(new PlortModel(renderContext, "1_coffeeShop_post.glb"), renderContext.allocator()));
+        world.recreateAABBBuffer();
     }
 
     public void start() {
@@ -44,6 +45,9 @@ public class Game {
         renderContext.window().input().setCursorState(CursorState.DISABLED);
 
         while (renderer.windowOpen()) {
+            renderContext.window().input().update();
+            renderContext.window().pollEvents();
+
             if (!renderer.frame(deltaTime)) continue;
 
             long frameEnd = System.nanoTime();
@@ -51,7 +55,7 @@ public class Game {
             prevFrameStart = System.nanoTime();
 
             float fdt = (float) deltaTime;
-            cameraController.update(fdt);
+            cameraController.update(world, fdt);
             world.update(fdt);
         }
         cleanup();

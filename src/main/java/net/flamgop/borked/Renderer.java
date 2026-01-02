@@ -61,6 +61,12 @@ public class Renderer implements AutoCloseable {
     private final PlortPipelineLayout ssaoPipelineLayout;
     private final PlortPipeline ssaoPipeline;
 
+    private final PlortShaderModule aabbModule;
+    private final PlortDescriptorSetLayout aabbLayout;
+    private final PlortBufferedDescriptorSetPool aabbDescriptors;
+    private final PlortPipelineLayout aabbPipelineLayout;
+    private final PlortPipeline aabbPipeline;
+
     private final PlortBuffer metaBuffer;
     private final PlortBuffer sceneBuffer;
 
@@ -204,6 +210,29 @@ public class Renderer implements AutoCloseable {
                 ),
                 new PlortSampler(context.device(), PlortFilter.NEAREST, PlortFilter.NEAREST, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE)
         );
+
+        ByteBuffer aabbCode = ResourceHelper.loadFromResource("assets/shaders/aabb.spv");
+        this.aabbModule = new PlortShaderModule(context.device(), aabbCode);
+        aabbModule.label("AABB");
+        MemoryUtil.memFree(aabbCode);
+
+        this.aabbLayout = new PlortDescriptorSetLayout(
+                context.device(),
+                new PlortDescriptor(PlortDescriptor.Type.UNIFORM_BUFFER, 1, PlortShaderStage.Stage.MESH.bit())
+        );
+        this.aabbDescriptors = new PlortBufferedDescriptorSetPool(context.device(), aabbLayout, 1, context.swapchain().imageCount());
+
+        this.aabbPipelineLayout = PlortPipelineLayout.builder(context.device())
+                .descriptorSetLayouts(aabbLayout)
+                .pushConstant(new PlortPushConstant(0, Long.BYTES, PlortShaderStage.Stage.MESH.bit()))
+                .build();
+        this.aabbPipeline = PlortPipeline.builder(context.device(), mainRenderPass)
+                .layout(aabbPipelineLayout)
+                .blendState(PlortBlendState.disabled())
+                .shaderStage(new PlortShaderStage(PlortShaderStage.Stage.MESH, aabbModule, "meshMain"))
+                .shaderStage(new PlortShaderStage(PlortShaderStage.Stage.FRAGMENT, aabbModule, "fragmentMain"))
+                .depthStencilStateInfo(new PlortDepthStencilState(false, false, CompareOp.ALWAYS, false, false, new PlortDepthStencilState.StencilOpState(), new PlortDepthStencilState.StencilOpState(), 0f, 1f))
+                .buildGraphics();
     }
 
     public boolean windowOpen() {
@@ -239,16 +268,14 @@ public class Renderer implements AutoCloseable {
     long timeoutTimestamp = System.nanoTime();
     boolean timeoutLastFrame = false;
 
-    private void updateDescriptorsDeferred(int imageIndex) {
-        world.entities.forEach(e -> e.model().setViewBuffer(context, cameraController.viewBuffer(), currentFrameModInFlight));
-    }
-
     private void submitDeferred(PlortCommandBuffer cmdBuffer, int imageIndex) {
+        world.entities.forEach(e -> e.model().setViewBuffer(context, cameraController.viewBuffer(), currentFrameModInFlight));
+
         meshPipeline.bind(cmdBuffer, PipelineBindPoint.GRAPHICS);
         world.entities.forEach(e -> e.submit(cmdBuffer, meshPipelineLayout, currentFrameModInFlight));
     }
 
-    private void updateDescriptorsShading(int currentFrameModInFlight, int imageIndex) {
+    private void submitShading(PlortCommandBuffer cmdBuffer, double deltaTime, int imageIndex, int currentFrameModInFlight) {
         context.device().writeDescriptorSets(List.of(
                 new TextureDescriptorWrite(new PlortTexture[]{gbuffer.positionTexture(imageIndex)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 0, gbuffer.descriptors().descriptorSet(currentFrameModInFlight, 0)),
                 new TextureDescriptorWrite(new PlortTexture[]{gbuffer.normalTexture(imageIndex)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 1, gbuffer.descriptors().descriptorSet(currentFrameModInFlight, 0)),
@@ -256,13 +283,23 @@ public class Renderer implements AutoCloseable {
                 new TextureDescriptorWrite(new PlortTexture[]{gbuffer.depthTexture(imageIndex)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 3, gbuffer.descriptors().descriptorSet(currentFrameModInFlight, 0)),
                 new TextureDescriptorWrite(new PlortTexture[]{noiseTexture}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 4, gbuffer.descriptors().descriptorSet(currentFrameModInFlight, 0)),
                 new TextureDescriptorWrite(new PlortTexture[]{ssaoTexture}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 5, gbuffer.descriptors().descriptorSet(currentFrameModInFlight, 0)),
-                new BufferDescriptorWrite(List.of(cameraController.viewBuffer()), PlortDescriptor.Type.UNIFORM_BUFFER, 6, gbuffer.descriptors().descriptorSet(currentFrameModInFlight, 0)) ,
+                new BufferDescriptorWrite(List.of(cameraController.viewBuffer()), PlortDescriptor.Type.UNIFORM_BUFFER, 6, gbuffer.descriptors().descriptorSet(currentFrameModInFlight, 0)),
                 new BufferDescriptorWrite(List.of(metaBuffer), PlortDescriptor.Type.UNIFORM_BUFFER, 7, gbuffer.descriptors().descriptorSet(currentFrameModInFlight, 0))
         ));
-    }
 
-    private void submitShading(PlortCommandBuffer cmdBuffer, double deltaTime, int imageIndex, int currentFrameModInFlight) {
         gbuffer.submitShadingPass(cmdBuffer, currentFrameModInFlight);
+
+        aabbPipeline.bind(cmdBuffer, PipelineBindPoint.GRAPHICS);
+        context.device().writeDescriptorSets(List.of(
+                new BufferDescriptorWrite(List.of(cameraController.viewBuffer()), PlortDescriptor.Type.UNIFORM_BUFFER, 0, aabbDescriptors.descriptorSet(currentFrameModInFlight, 0))
+        ));
+
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            cmdBuffer.bindDescriptorSets(PipelineBindPoint.GRAPHICS, aabbPipelineLayout, 0, stack.longs(aabbDescriptors.descriptorSet(currentFrameModInFlight, 0)), null);
+            PlortBuffer buffer = world.aabbBuffer();
+            cmdBuffer.pushConstants(aabbPipelineLayout, PlortShaderStage.Stage.MESH.bit(), 0, MemoryUtil.memByteBuffer(stack.longs(buffer != null ? buffer.deviceAddress() : 0)));
+            cmdBuffer.drawMeshTasksEXT((int) world.aabbCount(), 1, 1);
+        }
 
         textBuffers.replace(imageIndex, atlas.buildTextBuffer(List.of(
                 new Text(String.format("Frame Time: %.3fms FPS: %.3f", deltaTime * 1000f, 1 / deltaTime), Colors.red(), new Vector2f(0, 64), 0.5f),
@@ -347,8 +384,6 @@ public class Renderer implements AutoCloseable {
                 gClearValues.get(2).color().float32(0, 0).float32(1, 0).float32(2, 0).float32(3, 0);
                 gClearValues.get(3).depthStencil().depth(1.0f).stencil(0);
 
-                updateDescriptorsDeferred(imageIndex);
-
                 gbuffer.beginSubmitPass(cmdBuffer, gClearValues, imageIndex);
 
                 submitDeferred(cmdBuffer, imageIndex);
@@ -361,7 +396,6 @@ public class Renderer implements AutoCloseable {
 
                 gbuffer.transitionImagesForShading(cmdBuffer, imageIndex);
                 computeSSAO(cmdBuffer, currentFrameModInFlight, imageIndex);
-                updateDescriptorsShading(currentFrameModInFlight, imageIndex);
 
                 mainRenderPass.begin(cmdBuffer, clearValues, imageIndex);
 
@@ -375,7 +409,6 @@ public class Renderer implements AutoCloseable {
         endFrame(imageIndex);
 
         currentFrameModInFlight = (currentFrameModInFlight + 1) % context.swapchain().imageCount();
-        context.window().pollEvents();
         return true;
     }
 
@@ -406,6 +439,12 @@ public class Renderer implements AutoCloseable {
         ssaoLayout.close();
         ssaoDescriptors.close();
         ssaoModule.close();
+
+        aabbPipeline.close();
+        aabbPipelineLayout.close();
+        aabbLayout.close();
+        aabbDescriptors.close();
+        aabbModule.close();
 
         noiseTexture.close();
 

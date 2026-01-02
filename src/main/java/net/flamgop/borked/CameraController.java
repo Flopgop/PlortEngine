@@ -1,8 +1,7 @@
 package net.flamgop.borked;
 
-import net.flamgop.borked.math.Matrix4f;
-import net.flamgop.borked.math.Vector2f;
-import net.flamgop.borked.math.Vector3f;
+import net.flamgop.borked.math.*;
+import net.flamgop.borked.renderer.model.PlortModel;
 import net.flamgop.borked.renderer.window.PlortInput;
 import net.flamgop.borked.renderer.window.PlortWindow;
 import net.flamgop.borked.renderer.memory.BufferUsage;
@@ -18,18 +17,22 @@ public class CameraController implements AutoCloseable {
     private final Vector3f velocity = new Vector3f(0);
 
     private final Vector3f up = new Vector3f(0,1,0);
-    private final Vector3f position = new Vector3f(0,0,0);
+    private final Vector3f position = new Vector3f(-0.5f,10,-0.5f);
     private final Matrix4f projection = new Matrix4f();
     private final Matrix4f view = new Matrix4f();
 
     private final float fov;
     private final float sensitivity;
 
-    private final float gravity = -20f;
-    private final float jumpForce = 5f;
-    private final float cameraOffset = 1.85f;
+    private final float halfWidth = 0.5f;
+    private final float halfHeight = 1f;
+    private final AABB aabb = new AABB(new Vector3f(-halfWidth,-halfHeight,-halfWidth), new Vector3f(halfWidth, halfHeight, halfWidth));
 
-    private boolean grounded;
+    private final float gravity = -20f;
+    private final float jumpForce = 10f;
+    private final float cameraOffset = 0.85f;
+
+    private boolean grounded, applyGravity = false;
     private float lastMouseX, lastMouseY;
     private float yaw, pitch;
 
@@ -38,6 +41,7 @@ public class CameraController implements AutoCloseable {
         this.viewBuffer = new PlortBuffer(5 * Matrix4f.BYTES + 4 * Float.BYTES, BufferUsage.UNIFORM_BUFFER_BIT, allocator);
         this.fov = fov;
         this.sensitivity = sensitivity;
+        aabb.translate(position);
         this.resize(window.width(), window.height());
     }
 
@@ -61,6 +65,10 @@ public class CameraController implements AutoCloseable {
         this.projection.setIdentity().perspective((float) Math.toRadians(fov), (float) width / height, 0.001f, 1000.0f, true);
     }
 
+    public AABB aabb() {
+        return aabb;
+    }
+
     private void look() {
         Vector2f mousePos = input.mousePosition();
 
@@ -80,45 +88,76 @@ public class CameraController implements AutoCloseable {
         Vector3f forward = playerForward();
         Vector3f right = new Vector3f(forward).cross(up).normalize();
 
-        float speed = 2f * deltaTime;
+        velocity.x(0);
+        velocity.z(0);
 
-        if (input.keyDown(GLFW.GLFW_KEY_W)) {
-            Vector3f displacement = new Vector3f(forward).scale(speed);
-            position.add(displacement);
-        }
-        if (input.keyDown(GLFW.GLFW_KEY_A)) {
-            Vector3f displacement = new Vector3f(right).scale(-speed);
-            position.add(displacement);
-        }
-        if (input.keyDown(GLFW.GLFW_KEY_S)) {
-            Vector3f displacement = new Vector3f(forward).scale(-speed);
-            position.add(displacement);
-        }
-        if (input.keyDown(GLFW.GLFW_KEY_D)) {
-            Vector3f displacement = new Vector3f(right).scale(speed);
-            position.add(displacement);
-        }
+        float speed = 2f;
+
+        if (input.keyDown(GLFW.GLFW_KEY_W)) velocity.add(new Vector3f(forward).scale(speed));
+        if (input.keyDown(GLFW.GLFW_KEY_A)) velocity.add(new Vector3f(right).scale(-speed));
+        if (input.keyDown(GLFW.GLFW_KEY_S)) velocity.add(new Vector3f(forward).scale(-speed));
+        if (input.keyDown(GLFW.GLFW_KEY_D)) velocity.add(new Vector3f(right).scale(speed));
+
+        if (input.keyPressed(GLFW.GLFW_KEY_F)) applyGravity = !applyGravity;
 
         if (!grounded) {
             velocity.y(velocity.y() + gravity * deltaTime);
-
-            if (position.y() < 0) {
-                position.y(0);
-                velocity.y(0);
-                grounded = true;
-            }
         }
 
         if (input.keyDown(GLFW.GLFW_KEY_SPACE) && grounded) {
             grounded = false;
             velocity.y(jumpForce);
         }
+    }
 
-        position.add(new Vector3f(velocity).scale(deltaTime));
+    public void physicsStep(World world, float dt) {
+        grounded = false;
+        Vector3f delta = new Vector3f(velocity).scale(dt);
 
-        Vector3f offsetPosition = new Vector3f(position).add(0,cameraOffset,0);
-        Vector3f cameraTarget = new Vector3f(offsetPosition).add(cameraForward());
-        view.setIdentity().lookAt(offsetPosition, cameraTarget, up);
+        aabb.translate(new Vector3f(delta.x(), 0, 0));
+        resolveAxis(world, Axis.X);
+
+        aabb.translate(new Vector3f(0, delta.y(), 0));
+        resolveAxis(world, Axis.Y);
+
+        if (!applyGravity && aabb.min().y() < 0) {
+            float penetration = -aabb.min().y();
+            aabb.translate(new Vector3f(0, penetration, 0));
+            velocity.y(0);
+            grounded = true;
+        }
+
+        aabb.translate(new Vector3f(0, 0, delta.z()));
+        resolveAxis(world, Axis.Z);
+
+        position.setFrom(aabb.center());
+    }
+
+    private void resolveAxis(World world, Axis axis) {
+        for (Entity e : world.entities) {
+            Vector3f position = e.transform().position();
+            PlortModel model = e.model();
+
+            for (AABB child : model.childAABBs()) {
+                if (!child.hasCollision()) continue;
+                AABB worldChild = child.translated(position);
+                if (!aabb.intersects(worldChild)) continue;
+
+                Vector3f resolution = aabb.resolveAxis(worldChild, axis);
+                aabb.translate(resolution);
+
+                switch (axis) {
+                    case X -> velocity.x(0);
+                    case Z -> velocity.z(0);
+                    case Y -> {
+                        if (resolution.y() > 0) {
+                            grounded = true;
+                            velocity.y(0);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private void upload() {
@@ -135,9 +174,15 @@ public class CameraController implements AutoCloseable {
         }
     }
 
-    public void update(float deltaTime) {
+    public void update(World world, float deltaTime) {
         look();
         move(deltaTime);
+        physicsStep(world, deltaTime);
+
+        Vector3f offsetPosition = new Vector3f(position).add(0, cameraOffset, 0);
+        Vector3f cameraTarget = new Vector3f(offsetPosition).add(cameraForward());
+        view.setIdentity().lookAt(offsetPosition, cameraTarget, up);
+
         upload();
     }
 

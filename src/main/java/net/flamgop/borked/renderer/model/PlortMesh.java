@@ -1,5 +1,7 @@
 package net.flamgop.borked.renderer.model;
 
+import net.flamgop.borked.math.AABB;
+import net.flamgop.borked.math.Matrix4f;
 import net.flamgop.borked.math.Vector3f;
 import net.flamgop.borked.renderer.PlortCommandBuffer;
 import net.flamgop.borked.renderer.memory.*;
@@ -9,7 +11,6 @@ import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.util.meshoptimizer.MeshOptimizer;
 import org.lwjgl.util.meshoptimizer.MeshoptBounds;
 import org.lwjgl.util.meshoptimizer.MeshoptMeshlet;
-import org.lwjgl.vulkan.VkCommandBuffer;
 import org.lwjgl.vulkan.VkDescriptorBufferInfo;
 import org.lwjgl.vulkan.VkWriteDescriptorSet;
 import org.slf4j.Logger;
@@ -19,7 +20,6 @@ import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
-import static org.lwjgl.vulkan.EXTMeshShader.*;
 import static org.lwjgl.vulkan.VK14.*;
 
 public class PlortMesh extends TrackedCloseable {
@@ -31,11 +31,14 @@ public class PlortMesh extends TrackedCloseable {
     public static final int VERTEX_SIZE = 3 * Float.BYTES + 3 * Float.BYTES + 4 * Float.BYTES + 2 * Float.BYTES;
     public static final int BOUNDS_SIZE = 4 * Float.BYTES + 4 * Float.BYTES + 4 * Float.BYTES;
 
+    private final AABB aabb;
     private final PlortBuffer vertexBuffer, meshBuffer, boundsBuffer;
     private final int meshletCount;
 
-    public PlortMesh(PlortAllocator allocator, AIMesh mesh) {
+    public PlortMesh(PlortAllocator allocator, AIMesh mesh, boolean hasCollision, Matrix4f transform) {
         super();
+        Matrix4f normalMatrix = new Matrix4f(transform).invert().transpose();
+
         int numVertices = mesh.mNumVertices();
         int numFaces = mesh.mNumFaces();
         int numIndices = numFaces * 3;
@@ -64,7 +67,8 @@ public class PlortMesh extends TrackedCloseable {
         FloatBuffer vertices = MemoryUtil.memAllocFloat(numVertices * 3);
         for (int i = 0; i < numVertices; i++) {
             AIVector3D v = positions.get(i);
-            vertices.put(v.x()).put(v.y()).put(v.z());
+            Vector3f position = transform.transform(new Vector3f(v.x(), v.y(), v.z()));
+            vertices.put(position.x()).put(position.y()).put(position.z());
         }
         vertices.flip();
 
@@ -82,38 +86,38 @@ public class PlortMesh extends TrackedCloseable {
 
         try (MappedMemory mem = vertexBuffer.map()) {
             for (int i = 0; i < numVertices; i++) {
-                mem.putFloat(vertices.get(i * 3));
-                mem.putFloat(vertices.get(i * 3 + 1));
-                mem.putFloat(vertices.get(i * 3 + 2));
+                mem.putFloat(vertices.get(i*3));
+                mem.putFloat(vertices.get(i*3+1));
+                mem.putFloat(vertices.get(i*3+2));
                 if (normals != null) {
-                    AIVector3D normal = normals.get(i);
-                    mem.putFloat(normal.x());
-                    mem.putFloat(normal.y());
-                    mem.putFloat(normal.z());
+                    AIVector3D n = normals.get(i);
+                    Vector3f normal = normalMatrix.transformDirection(new Vector3f(n.x(), n.y(), n.z()));
+                    mem.putVector3f(normal);
+
+                    if (tangents != null && bitangents != null) {
+                        AIVector3D tan = tangents.get(i);
+                        Vector3f tangent = normalMatrix.transformDirection(new Vector3f(tan.x(), tan.y(), tan.z()));
+
+                        mem.putVector3f(tangent);
+
+                        AIVector3D bitangent = bitangents.get(i);
+
+                        Vector3f b = normalMatrix.transformDirection(new Vector3f(bitangent.x(), bitangent.y(), bitangent.z()));
+
+                        float sign = normal.cross(tangent).dot(b) < 0f ? -1f : 1f;
+                        mem.putFloat(sign);
+                    } else {
+                        LOGGER.warn("Null tangents!");
+                        mem.putFloat(0);
+                        mem.putFloat(0);
+                        mem.putFloat(0);
+                        mem.putFloat(1);
+                    }
                 } else {
                     LOGGER.warn("Null normals!");
                     mem.putFloat(0);
                     mem.putFloat(0);
                     mem.putFloat(0);
-                }
-                if (normals != null && tangents != null && bitangents != null) {
-                    AIVector3D tangent = tangents.get(i);
-                    mem.putFloat(tangent.x());
-                    mem.putFloat(tangent.y());
-                    mem.putFloat(tangent.z());
-
-                    AIVector3D bitangent = bitangents.get(i);
-                    AIVector3D normal = normals.get(i);
-
-                    Vector3f n = new Vector3f(normal.x(), normal.y(), normal.z());
-                    Vector3f b = new Vector3f(bitangent.x(), bitangent.y(), bitangent.z());
-                    Vector3f t = new Vector3f(tangent.x(), tangent.y(), tangent.z());
-
-                    float sign = n.cross(t).dot(b) < 0f ? -1f : 1f;
-                    mem.putFloat(sign);
-
-                } else {
-                    LOGGER.warn("Null tangents!");
                     mem.putFloat(0);
                     mem.putFloat(0);
                     mem.putFloat(0);
@@ -185,6 +189,33 @@ public class PlortMesh extends TrackedCloseable {
             }
         }
 
+        AIVector3D amin = mesh.mAABB().mMin();
+        AIVector3D amax = mesh.mAABB().mMax();
+        Vector3f min = new Vector3f(amin.x(), amin.y(), amin.z());
+        Vector3f max = new Vector3f(amax.x(), amax.y(), amax.z());
+
+        Vector3f[] corners = {
+                new Vector3f(min.x(), min.y(), min.z()),
+                new Vector3f(min.x(), min.y(), max.z()),
+                new Vector3f(min.x(), max.y(), min.z()),
+                new Vector3f(min.x(), max.y(), max.z()),
+                new Vector3f(max.x(), min.y(), min.z()),
+                new Vector3f(max.x(), min.y(), max.z()),
+                new Vector3f(max.x(), max.y(), min.z()),
+                new Vector3f(max.x(), max.y(), max.z()),
+        };
+
+        Vector3f newMin = new Vector3f(Float.POSITIVE_INFINITY);
+        Vector3f newMax = new Vector3f(Float.NEGATIVE_INFINITY);
+
+        for (Vector3f c : corners) {
+            Vector3f t = transform.transform(c);
+            newMin = newMin.min(t);
+            newMax = newMax.max(t);
+        }
+
+        this.aabb = new AABB(newMin, newMax, hasCollision);
+
         meshlets.close();
         MemoryUtil.memFree(meshletTriangles);
         MemoryUtil.memFree(meshletVertices);
@@ -192,22 +223,8 @@ public class PlortMesh extends TrackedCloseable {
         MemoryUtil.memFree(indices);
     }
 
-    public PlortMesh(PlortAllocator allocator, String path) {
-        AIScene scene = Assimp.aiImportFile(
-                path,
-                Assimp.aiProcess_Triangulate |
-                        Assimp.aiProcess_GenSmoothNormals |
-                        Assimp.aiProcess_CalcTangentSpace |
-                        Assimp.aiProcess_JoinIdenticalVertices |
-                        Assimp.aiProcess_ImproveCacheLocality |
-                        Assimp.aiProcess_SortByPType
-        );
-
-        if (scene == null || scene.mNumMeshes() == 0) throw new RuntimeException("bad model " + path);
-
-        AIMesh mesh = AIMesh.create(scene.mMeshes().get(0));
-        this(allocator, mesh);
-        Assimp.aiFreeScene(scene);
+    public AABB aabb() {
+        return new AABB(aabb);
     }
 
     public PlortBuffer vertexBuffer() {

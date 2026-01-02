@@ -1,6 +1,7 @@
 package net.flamgop.borked.math;
 
 import org.jetbrains.annotations.ApiStatus;
+import org.lwjgl.assimp.AIMatrix4x4;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -18,6 +19,15 @@ public class Matrix4f {
 
     public static Matrix4f fromQuaternion(Quaternionf q) {
         return fromQuaternion(Arena.ofAuto(), q);
+    }
+
+    public static Matrix4f fromAssimp(AIMatrix4x4 m) {
+        return new Matrix4f(
+                m.a1(), m.b1(), m.c1(), m.d1(),
+                m.a2(), m.b2(), m.c2(), m.d2(),
+                m.a3(), m.b3(), m.c3(), m.d3(),
+                m.a4(), m.b4(), m.c4(), m.d4()
+        );
     }
 
     private static final long M00 = 0;
@@ -57,6 +67,18 @@ public class Matrix4f {
         this(Arena.ofAuto(), other);
     }
 
+    public Matrix4f(Arena arena, float m00, float m01, float m02, float m03, float m10, float m11, float m12, float m13, float m20, float m21, float m22, float m23, float m30, float m31, float m32, float m33) {
+        this(arena);
+        m00(m00); m01(m01); m02(m02); m03(m03);
+        m10(m10); m11(m11); m12(m12); m13(m13);
+        m20(m20); m21(m21); m22(m22); m23(m23);
+        m30(m30); m31(m31); m32(m32); m33(m33);
+    }
+
+    public Matrix4f(float m00, float m01, float m02, float m03, float m10, float m11, float m12, float m13, float m20, float m21, float m22, float m23, float m30, float m31, float m32, float m33) {
+        this(Arena.ofAuto(), m00, m01, m02, m03, m10, m11, m12, m13, m20, m21, m22, m23, m30, m31, m32, m33);
+    }
+
     @ApiStatus.Internal // not bounds checked
     public float getUnsafe(int index) {
         return memory.get(F32, (long)index * Float.BYTES);
@@ -85,6 +107,10 @@ public class Matrix4f {
         memory.set(F32, M22, 1);
         memory.set(F32, M33, 1);
         return this;
+    }
+
+    public Vector3f position() {
+        return new Vector3f(m30(), m31(), m32());
     }
 
     public Matrix4f perspective(float fov, float aspectRatio, float near, float far, boolean zZeroToOne) {
@@ -173,6 +199,31 @@ public class Matrix4f {
         this.m32(Math.fma(a02, b30, Math.fma(a12, b31, Math.fma(a22, b32, a32 * b33))));
         this.m33(Math.fma(a03, b30, Math.fma(a13, b31, Math.fma(a23, b32, a33 * b33))));
         return this;
+    }
+
+    public Vector3f transform(Vector3f v) {
+        float x = v.x(), y = v.y(), z = v.z();
+
+        float rx = Math.fma(m00(), x, Math.fma(m10(), y, Math.fma(m20(), z, m30())));
+        float ry = Math.fma(m01(), x, Math.fma(m11(), y, Math.fma(m21(), z, m31())));
+        float rz = Math.fma(m02(), x, Math.fma(m12(), y, Math.fma(m22(), z, m32())));
+        float rw = Math.fma(m03(), x, Math.fma(m13(), y, Math.fma(m23(), z, m33())));
+
+        if (rw != 1.0f && rw != 0.0f) {
+            float invW = 1.0f / rw;
+            return new Vector3f(rx * invW, ry * invW, rz * invW);
+        }
+
+        return new Vector3f(rx, ry, rz);
+    }
+
+    public Vector3f transformDirection(Vector3f v) {
+        float x = v.x(), y = v.y(), z = v.z();
+        return new Vector3f(
+                Math.fma(m00(), x, Math.fma(m10(), y, m20() * z)),
+                Math.fma(m01(), x, Math.fma(m11(), y, m21() * z)),
+                Math.fma(m02(), x, Math.fma(m12(), y, m22() * z))
+        ).normalize();
     }
 
     public Matrix4f scale(float scale) {

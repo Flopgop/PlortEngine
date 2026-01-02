@@ -1,5 +1,7 @@
 package net.flamgop.borked.renderer.model;
 
+import net.flamgop.borked.math.AABB;
+import net.flamgop.borked.math.Matrix4f;
 import net.flamgop.borked.renderer.PlortCommandBuffer;
 import net.flamgop.borked.renderer.descriptor.PlortBufferedDescriptorSetPool;
 import net.flamgop.borked.renderer.PlortRenderContext;
@@ -7,9 +9,12 @@ import net.flamgop.borked.renderer.descriptor.PlortDescriptor;
 import net.flamgop.borked.renderer.descriptor.PlortDescriptorSetLayout;
 import net.flamgop.borked.renderer.image.PlortImage;
 import net.flamgop.borked.renderer.material.PlortTexture;
+import net.flamgop.borked.renderer.memory.PlortAllocator;
 import net.flamgop.borked.renderer.memory.PlortBuffer;
 import net.flamgop.borked.renderer.pipeline.*;
 import net.flamgop.borked.renderer.util.ResourceHelper;
+import org.jetbrains.annotations.UnmodifiableView;
+import org.lwjgl.PointerBuffer;
 import org.lwjgl.assimp.*;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
@@ -21,13 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import static org.lwjgl.vulkan.VK10.vkCmdBindDescriptorSets;
-import static org.lwjgl.vulkan.VK10.vkCmdPushConstants;
+import java.util.*;
 
 public class PlortModel implements AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(PlortModel.class);
@@ -38,6 +37,9 @@ public class PlortModel implements AutoCloseable {
     private final List<PlortMesh> meshes = new ArrayList<>();
     private final List<PlortTexture> textures = new ArrayList<>();
     private final Map<PlortMesh, Integer> materialMappings = new HashMap<>();
+
+    private final List<AABB> childAABBs;
+    private final AABB aabb;
 
     private final int materialCount;
 
@@ -67,10 +69,13 @@ public class PlortModel implements AutoCloseable {
                         Assimp.aiProcess_CalcTangentSpace |
                         Assimp.aiProcess_JoinIdenticalVertices |
                         Assimp.aiProcess_ImproveCacheLocality |
-                        Assimp.aiProcess_SortByPType
+                        Assimp.aiProcess_SortByPType |
+                        Assimp.aiProcess_GenBoundingBoxes
         );
 
         if (scene == null || scene.mNumMeshes() == 0) throw new RuntimeException("bad model " + path);
+        AINode rootNode = scene.mRootNode();
+        if (rootNode == null) throw new NullPointerException("No nodes in scene");
         if (scene.mMeshes() == null) throw new NullPointerException("No meshes in scene");
         if (scene.mTextures() == null) throw new NullPointerException("No textures in scene");
 
@@ -174,14 +179,74 @@ public class PlortModel implements AutoCloseable {
             engine.device().updateDescriptorSets(writes, null);
         }
 
-        for (int i = 0; i < scene.mNumMeshes(); i++) {
-            AIMesh mesh = AIMesh.create(scene.mMeshes().get(i));
-            meshes.add(new PlortMesh(engine.allocator(), mesh));
 
-            materialMappings.put(meshes.get(i), mesh.mMaterialIndex());
-        }
+        aabb = traverseNode(engine.allocator(), scene, rootNode);
+        this.childAABBs = meshes.stream().map(PlortMesh::aabb).toList();
 
         Assimp.aiFreeScene(scene);
+    }
+
+    private AABB traverseNode(PlortAllocator allocator, AIScene scene, AINode node) {
+        AABB aabb = null;
+        boolean noCollision = false;
+        AIMetaData meta = node.mMetadata();
+        if (meta != null) {
+            // TODO: determine fi the metadata has a no_collision tag on this node.
+            int count = meta.mNumProperties();
+            AIString.Buffer keys = meta.mKeys();
+            AIMetaDataEntry.Buffer values = meta.mValues();
+
+            for (int i = 0; i < count; i++) {
+                String key = keys.get(i).dataString();
+                if (key.equals("no_collision")) {
+                    AIMetaDataEntry entry = values.get(i);
+                    LOGGER.debug("Found a no_collision tag!");
+
+                    switch (entry.mType()) {
+                        case 0 -> { // BOOL
+                            noCollision = entry.mData(1).get() != 0;
+                        }
+                        case 1 -> { // INT32
+                            noCollision = entry.mData(4).getInt(0) != 0;
+                        }
+                    }
+                    LOGGER.debug("Set noCollision to {}", noCollision);
+                    break;
+                }
+            }
+        }
+
+        IntBuffer meshIndices = node.mMeshes();
+        if (meshIndices != null) {
+            for (int i = 0; i < meshIndices.capacity(); i++) {
+                int meshIndex = meshIndices.get(i);
+                AIMesh mesh = AIMesh.create(scene.mMeshes().get(meshIndex));
+                PlortMesh pm = new PlortMesh(allocator, mesh, !noCollision, Matrix4f.fromAssimp(node.mTransformation()));
+
+                meshes.add(pm);
+                materialMappings.put(pm, mesh.mMaterialIndex());
+
+                if (aabb == null) aabb = pm.aabb();
+                else aabb = aabb.union(pm.aabb());
+            }
+        }
+
+        PointerBuffer children = node.mChildren();
+        if (children != null) {
+            for (int i = 0; i < node.mNumChildren(); i++) {
+                AINode child = AINode.create(children.get(i));
+                AABB childAABB = traverseNode(allocator, scene, child);
+                if (childAABB != null) {
+                    if (aabb == null) aabb = childAABB;
+                    else aabb = aabb.union(childAABB);
+                }
+            }
+        }
+        return aabb;
+    }
+
+    public AABB aabb() {
+        return new AABB(aabb);
     }
 
     @SuppressWarnings("resource")
@@ -223,6 +288,10 @@ public class PlortModel implements AutoCloseable {
                 mesh.recordDrawCommandInstanced(cmdBuffer, instanceCount);
             }
         }
+    }
+
+    public @UnmodifiableView List<AABB> childAABBs() {
+        return childAABBs;
     }
 
     @Override

@@ -53,6 +53,15 @@ public class Vector3f {
         return getUnsafe(index);
     }
 
+    public void getToAddress(long ptr) {
+        MemorySegment segment = MemorySegment.ofAddress(ptr).reinterpret(BYTES);
+        getToMemorySegment(segment);
+    }
+
+    public void getToMemorySegment(MemorySegment dst) {
+        dst.copyFrom(memory);
+    }
+
     @ApiStatus.Internal
     public void setUnsafe(int index, float value) {
         memory.set(F32, (long) index * Float.BYTES, value);
@@ -61,6 +70,12 @@ public class Vector3f {
     public void set(int index, float value) {
         if (index < 0 || index >= 3) throw new IndexOutOfBoundsException(index);
         setUnsafe(index, value);
+    }
+
+    public void setFrom(Vector3f other) {
+        this.x(other.x());
+        this.y(other.y());
+        this.z(other.z());
     }
 
     public float x() {
@@ -151,6 +166,13 @@ public class Vector3f {
         return this;
     }
 
+    public Vector3f subtract(float x, float y, float z) {
+        this.x(this.x() - x);
+        this.y(this.y() - y);
+        this.z(this.z() - z);
+        return this;
+    }
+
     public Vector3f subtract(Vector3f b) {
         this.x(this.x() - b.x());
         this.y(this.y() - b.y());
@@ -164,5 +186,18 @@ public class Vector3f {
 
     public float dot(Vector3f b) {
         return Math.fma(x(), b.x(), Math.fma(y(), b.y(), z() * b.z()));
+    }
+
+    public Vector3f min(Vector3f other) {
+        return new Vector3f(Math.min(x(), other.x()), Math.min(y(), other.y()), Math.min(z(), other.z()));
+    }
+
+    public Vector3f max(Vector3f other) {
+        return new Vector3f(Math.max(x(), other.x()), Math.max(y(), other.y()), Math.max(z(), other.z()));
+    }
+
+    @Override
+    public String toString() {
+        return "Vector3f{" + x() + "," + y() + "," + z() + "}";
     }
 }

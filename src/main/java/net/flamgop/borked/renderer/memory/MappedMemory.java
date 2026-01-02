@@ -1,6 +1,7 @@
 package net.flamgop.borked.renderer.memory;
 
 import net.flamgop.borked.math.Matrix4f;
+import net.flamgop.borked.math.Vector3f;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
@@ -31,7 +32,12 @@ public class MappedMemory implements AutoCloseable {
 
     public void putMatrix4f(Matrix4f matrix) {
         matrix.getToAddress(ptr);
-        incrementPtr(16 * Float.BYTES);
+        incrementPtr(Matrix4f.BYTES);
+    }
+
+    public void putVector3f(Vector3f vector) {
+        vector.getToAddress(ptr);
+        incrementPtr(Vector3f.BYTES);
     }
 
     public void putFloat(float f) {
