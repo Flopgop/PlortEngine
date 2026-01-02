@@ -10,7 +10,6 @@ import net.flamgop.borked.renderer.memory.PlortAllocator;
 import net.flamgop.borked.renderer.memory.PlortBuffer;
 import net.flamgop.borked.renderer.model.PlortModel;
 import net.flamgop.borked.renderer.pipeline.PlortPipelineLayout;
-import org.lwjgl.vulkan.VkCommandBuffer;
 
 import java.util.function.Consumer;
 
@@ -38,6 +37,7 @@ public class Entity implements AutoCloseable {
     public void setPosition(Vector3f position) {
         this.setPosition(position.x(), position.y(), position.z());
     }
+
     public void setPosition(float x, float y, float z) {
         transform.translation(x, y, z);
         transformDirty = true;
@@ -63,6 +63,10 @@ public class Entity implements AutoCloseable {
             transformDirty = false;
         }
         model.submit(cmdBuffer, pipelineLayout, instanceBuffer, 1, currentFrameModInFlight);
+    }
+
+    public void update(float deltaTime) {
+
     }
 
     @Override

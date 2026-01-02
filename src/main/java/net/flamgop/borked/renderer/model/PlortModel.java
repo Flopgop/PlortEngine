@@ -2,7 +2,7 @@ package net.flamgop.borked.renderer.model;
 
 import net.flamgop.borked.renderer.PlortCommandBuffer;
 import net.flamgop.borked.renderer.descriptor.PlortBufferedDescriptorSetPool;
-import net.flamgop.borked.renderer.PlortEngine;
+import net.flamgop.borked.renderer.PlortRenderContext;
 import net.flamgop.borked.renderer.descriptor.PlortDescriptor;
 import net.flamgop.borked.renderer.descriptor.PlortDescriptorSetLayout;
 import net.flamgop.borked.renderer.image.PlortImage;
@@ -13,7 +13,6 @@ import net.flamgop.borked.renderer.util.ResourceHelper;
 import org.lwjgl.assimp.*;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
-import org.lwjgl.vulkan.VkCommandBuffer;
 import org.lwjgl.vulkan.VkDescriptorBufferInfo;
 import org.lwjgl.vulkan.VkDescriptorImageInfo;
 import org.lwjgl.vulkan.VkWriteDescriptorSet;
@@ -53,7 +52,7 @@ public class PlortModel implements AutoCloseable {
     }
 
     @SuppressWarnings("resource")
-    public PlortModel(PlortEngine engine, String path) {
+    public PlortModel(PlortRenderContext engine, String path) {
         if (nullTexture == null) {
             nullTexture = ResourceHelper.loadTextureFromResources(engine, "assets/textures/null.png");
         }
@@ -186,7 +185,7 @@ public class PlortModel implements AutoCloseable {
     }
 
     @SuppressWarnings("resource")
-    public void setViewBuffer(PlortEngine engine, PlortBuffer viewBuffer, int currentFrameModInFlight) {
+    public void setViewBuffer(PlortRenderContext engine, PlortBuffer viewBuffer, int currentFrameModInFlight) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(materialCount, stack);
             VkDescriptorBufferInfo.Buffer bufferInfos = VkDescriptorBufferInfo.calloc(materialCount, stack);

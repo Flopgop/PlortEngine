@@ -15,6 +15,8 @@ public class CameraController implements AutoCloseable {
     private final PlortInput input;
     private final PlortBuffer viewBuffer;
 
+    private final Vector3f velocity = new Vector3f(0);
+
     private final Vector3f up = new Vector3f(0,1,0);
     private final Vector3f position = new Vector3f(0,0,0);
     private final Matrix4f projection = new Matrix4f();
@@ -23,6 +25,11 @@ public class CameraController implements AutoCloseable {
     private final float fov;
     private final float sensitivity;
 
+    private final float gravity = -20f;
+    private final float jumpForce = 5f;
+    private final float cameraOffset = 1.85f;
+
+    private boolean grounded;
     private float lastMouseX, lastMouseY;
     private float yaw, pitch;
 
@@ -34,7 +41,7 @@ public class CameraController implements AutoCloseable {
         this.resize(window.width(), window.height());
     }
 
-    public Vector3f forward() {
+    public Vector3f cameraForward() {
         return new Vector3f(
                 (float)(Math.cos(Math.toRadians(yaw)) * Math.cos(Math.toRadians(pitch))),
                 (float) Math.sin(Math.toRadians(pitch)),
@@ -42,8 +49,12 @@ public class CameraController implements AutoCloseable {
         ).normalize();
     }
 
+    public Vector3f playerForward() {
+        return new Vector3f((float)(Math.cos(Math.toRadians(yaw))), 0, (float)(Math.sin(Math.toRadians(yaw)))).normalize();
+    }
+
     public Vector3f right() {
-        return new Vector3f(forward()).cross(up).normalize();
+        return new Vector3f(cameraForward()).cross(up).normalize();
     }
 
     public void resize(int width, int height) {
@@ -53,19 +64,20 @@ public class CameraController implements AutoCloseable {
     private void look() {
         Vector2f mousePos = input.mousePosition();
 
-        float dx = ((float) mousePos.x() - lastMouseX) * sensitivity;
-        float dy = (lastMouseY - (float) mousePos.y()) * sensitivity;
+        float dx = (mousePos.x() - lastMouseX) * sensitivity;
+        float dy = (lastMouseY - mousePos.y()) * sensitivity;
 
-        lastMouseX = (float) mousePos.x();
-        lastMouseY = (float) mousePos.y();
+        lastMouseX = mousePos.x();
+        lastMouseY = mousePos.y();
 
         yaw += dx;
         pitch += dy;
 
         pitch = Math.max(-89f, Math.min(89f, pitch));
     }
+
     private void move(float deltaTime) {
-        Vector3f forward = forward();
+        Vector3f forward = playerForward();
         Vector3f right = new Vector3f(forward).cross(up).normalize();
 
         float speed = 2f * deltaTime;
@@ -87,9 +99,28 @@ public class CameraController implements AutoCloseable {
             position.add(displacement);
         }
 
-        Vector3f cameraTarget = new Vector3f(position).add(forward);
-        view.setIdentity().lookAt(position, cameraTarget, up);
+        if (!grounded) {
+            velocity.y(velocity.y() + gravity * deltaTime);
+
+            if (position.y() < 0) {
+                position.y(0);
+                velocity.y(0);
+                grounded = true;
+            }
+        }
+
+        if (input.keyDown(GLFW.GLFW_KEY_SPACE) && grounded) {
+            grounded = false;
+            velocity.y(jumpForce);
+        }
+
+        position.add(new Vector3f(velocity).scale(deltaTime));
+
+        Vector3f offsetPosition = new Vector3f(position).add(0,cameraOffset,0);
+        Vector3f cameraTarget = new Vector3f(offsetPosition).add(cameraForward());
+        view.setIdentity().lookAt(offsetPosition, cameraTarget, up);
     }
+
     private void upload() {
         try (MappedMemory mem = viewBuffer.map()) {
             mem.putMatrix4f(new Matrix4f(projection).multiply(view));

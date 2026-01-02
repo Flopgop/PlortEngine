@@ -130,6 +130,13 @@ public class Vector3f {
         return this;
     }
 
+    public Vector3f add(float x, float y, float z) {
+        this.x(this.x() + x);
+        this.y(this.y() + y);
+        this.z(this.z() + z);
+        return this;
+    }
+
     public Vector3f add(Vector3f b) {
         this.x(this.x() + b.x());
         this.y(this.y() + b.y());

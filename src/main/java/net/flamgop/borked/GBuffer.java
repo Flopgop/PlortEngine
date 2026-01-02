@@ -2,8 +2,8 @@ package net.flamgop.borked;
 
 import net.flamgop.borked.math.Vector3i;
 import net.flamgop.borked.renderer.PlortCommandBuffer;
+import net.flamgop.borked.renderer.PlortRenderContext;
 import net.flamgop.borked.renderer.descriptor.PlortBufferedDescriptorSetPool;
-import net.flamgop.borked.renderer.PlortEngine;
 import net.flamgop.borked.renderer.descriptor.PlortDescriptor;
 import net.flamgop.borked.renderer.descriptor.PlortDescriptorSetLayout;
 import net.flamgop.borked.renderer.image.*;
@@ -20,7 +20,6 @@ import org.lwjgl.vulkan.*;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import static org.lwjgl.vulkan.EXTMeshShader.vkCmdDrawMeshTasksEXT;
 import static org.lwjgl.vulkan.VK10.*;
 
 public class GBuffer implements AutoCloseable {
@@ -37,7 +36,7 @@ public class GBuffer implements AutoCloseable {
     private final PlortImage[] gDepthImages;
     private final PlortRenderPass gbufferRenderPass;
 
-    public GBuffer(PlortEngine engine, PlortRenderPass mainRenderPass) {
+    public GBuffer(PlortRenderContext engine, PlortRenderPass mainRenderPass) {
         gPositionImages = new PlortImage[engine.swapchain().imageCount()];
         gNormalImages = new PlortImage[engine.swapchain().imageCount()];
         gAlbedoImages = new PlortImage[engine.swapchain().imageCount()];

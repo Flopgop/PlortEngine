@@ -2,7 +2,7 @@ package net.flamgop.borked.renderer.util;
 
 import net.flamgop.borked.Main;
 import net.flamgop.borked.math.Vector3i;
-import net.flamgop.borked.renderer.PlortEngine;
+import net.flamgop.borked.renderer.PlortRenderContext;
 import net.flamgop.borked.renderer.image.ImageFormat;
 import net.flamgop.borked.renderer.image.PlortFilter;
 import net.flamgop.borked.renderer.image.PlortImage;
@@ -34,14 +34,14 @@ public class ResourceHelper {
         }
     }
 
-    public static PlortTexture loadTextureFromResources(PlortEngine engine, String path) {
+    public static PlortTexture loadTextureFromResources(PlortRenderContext engine, String path) {
         ByteBuffer bytes = ResourceHelper.loadFromResource(path);
         PlortTexture texture = loadTextureFromMemory(engine, bytes);
         MemoryUtil.memFree(bytes);
         return texture;
     }
 
-    public static PlortTexture loadTextureFromMemory(PlortEngine engine, ByteBuffer bytes) {
+    public static PlortTexture loadTextureFromMemory(PlortRenderContext engine, ByteBuffer bytes) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             IntBuffer x = stack.callocInt(1), y = stack.callocInt(1), channels = stack.callocInt(1);
             STBImage.stbi_set_flip_vertically_on_load(true);
@@ -82,7 +82,7 @@ public class ResourceHelper {
         }
     }
 
-    public static PlortTexture loadRawTextureFromMemory(PlortEngine engine, ByteBuffer rgba, int width, int height) {
+    public static PlortTexture loadRawTextureFromMemory(PlortRenderContext engine, ByteBuffer rgba, int width, int height) {
         PlortBuffer stagingBuffer = new PlortBuffer(rgba.capacity(), BufferUsage.TRANSFER_SRC_BIT, engine.allocator());
         try (MappedMemory mem = stagingBuffer.map()) {
             mem.copyEntireBuffer(rgba);
