@@ -8,6 +8,7 @@ build/
 ### misc stuffs ###
 hs_err_*.log
 logs/
+joltjni*
 
 ### IntelliJ IDEA ###
 .idea/modules.xml
