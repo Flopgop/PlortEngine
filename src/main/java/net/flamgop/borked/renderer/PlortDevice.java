@@ -6,13 +6,13 @@ import net.flamgop.borked.renderer.descriptor.TextureDescriptorWrite;
 import net.flamgop.borked.renderer.memory.TrackedCloseable;
 import net.flamgop.borked.renderer.util.VkUtil;
 import net.flamgop.borked.renderer.exception.VulkanException;
+import org.jetbrains.annotations.Nullable;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;

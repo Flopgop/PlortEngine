@@ -1,5 +1,8 @@
 package net.flamgop.borked.math;
 
+import com.github.stephengold.joltjni.Vec3;
+import com.github.stephengold.joltjni.readonly.RVec3Arg;
+import com.github.stephengold.joltjni.readonly.Vec3Arg;
 import org.jetbrains.annotations.ApiStatus;
 
 import java.lang.foreign.Arena;
@@ -18,6 +21,22 @@ public class Vector3f {
 
     public Vector3f() {
         this(Arena.ofAuto());
+    }
+
+    public Vector3f(Arena arena, RVec3Arg vec) {
+        this(arena, vec.x(), vec.y(), vec.z());
+    }
+
+    public Vector3f(RVec3Arg vec) {
+        this(Arena.ofAuto(), vec);
+    }
+
+    public Vector3f(Arena arena, Vec3Arg vec) {
+        this(arena, vec.getX(), vec.getY(), vec.getZ());
+    }
+
+    public Vector3f(Vec3Arg vec) {
+        this(Arena.ofAuto(), vec);
     }
 
     public Vector3f(Arena arena, float x, float y, float z) {
@@ -41,6 +60,10 @@ public class Vector3f {
 
     public Vector3f(float v) {
         this(v, v, v);
+    }
+
+    public Vec3Arg toJoltVec3() {
+        return new Vec3(x(),y(),z());
     }
 
     @ApiStatus.Internal // note: not bounds checked
@@ -72,10 +95,30 @@ public class Vector3f {
         setUnsafe(index, value);
     }
 
-    public void setFrom(Vector3f other) {
+    public Vector3f set(float x, float y, float z) {
+        this.x(x);
+        this.y(y);
+        this.z(z);
+        return this;
+    }
+
+    public Vector3f setFrom(Vector3f other) {
+        this.memory.copyFrom(other.memory);
+        return this;
+    }
+
+    public Vector3f setFrom(Vec3Arg other) {
+        this.x(other.getX());
+        this.y(other.getY());
+        this.z(other.getZ());
+        return this;
+    }
+
+    public Vector3f setFrom(RVec3Arg other) {
         this.x(other.x());
         this.y(other.y());
         this.z(other.z());
+        return this;
     }
 
     public float x() {
@@ -113,6 +156,10 @@ public class Vector3f {
         return (float) Math.sqrt(lengthSquared());
     }
 
+    public float magnitude() {
+        return this.length();
+    }
+
     public Vector3f normalize() {
         return this.scale(1f / length());
     }
@@ -121,6 +168,13 @@ public class Vector3f {
         this.x(this.x() * scale);
         this.y(this.y() * scale);
         this.z(this.z() * scale);
+        return this;
+    }
+
+    public Vector3f scale(Vector3f scale) {
+        this.x(this.x() * scale.x());
+        this.y(this.y() * scale.y());
+        this.z(this.z() * scale.z());
         return this;
     }
 
@@ -159,6 +213,13 @@ public class Vector3f {
         return this;
     }
 
+    public Vector3f addScaled(Vector3f b, float scale) {
+        this.x(Math.fma(b.x(), scale, this.x()));
+        this.y(Math.fma(b.y(), scale, this.y()));
+        this.z(Math.fma(b.z(), scale, this.z()));
+        return this;
+    }
+
     public Vector3f subtract(float value) {
         this.x(this.x() - value);
         this.y(this.y() - value);
@@ -180,6 +241,13 @@ public class Vector3f {
         return this;
     }
 
+    public Vector3f lerp(Vector3f other, float t, float dt) {
+        this.x(MathUtil.lerpf(this.x(), other.x(), t, dt));
+        this.y(MathUtil.lerpf(this.y(), other.y(), t, dt));
+        this.z(MathUtil.lerpf(this.z(), other.z(), t, dt));
+        return this;
+    }
+
     public Vector3f negate() {
         return this.scale(-1f);
     }
@@ -194,6 +262,32 @@ public class Vector3f {
 
     public Vector3f max(Vector3f other) {
         return new Vector3f(Math.max(x(), other.x()), Math.max(y(), other.y()), Math.max(z(), other.z()));
+    }
+
+    public Vector3f min(Arena arena, Vector3f other) {
+        return new Vector3f(arena, Math.min(x(), other.x()), Math.min(y(), other.y()), Math.min(z(), other.z()));
+    }
+
+    public Vector3f max(Arena arena, Vector3f other) {
+        return new Vector3f(arena, Math.max(x(), other.x()), Math.max(y(), other.y()), Math.max(z(), other.z()));
+    }
+
+    public Vector3f min(Vector3f other, Vector3f dst) {
+        dst.x(Math.min(x(), other.x())); dst.y(Math.min(y(), other.y())); dst.z(Math.min(z(), other.z()));
+        return dst;
+    }
+
+    public Vector3f max(Vector3f other, Vector3f dst) {
+        dst.x(Math.max(x(), other.x())); dst.y(Math.max(y(), other.y())); dst.z(Math.max(z(), other.z()));
+        return dst;
+    }
+
+    public float max() {
+        return Math.max(x(), Math.max(y(), z()));
+    }
+
+    public float min() {
+        return Math.min(x(), Math.min(y(), z()));
     }
 
     @Override

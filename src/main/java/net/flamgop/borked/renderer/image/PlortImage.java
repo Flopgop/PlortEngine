@@ -207,13 +207,13 @@ public class PlortImage extends TrackedCloseable {
     ) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkImageMemoryBarrier.Buffer barrier = VkImageMemoryBarrier.calloc(1, stack);
-            this.transitionLayout(barrier.get(0), oldLayout, newLayout, srcAccessMask, dstAccessMask);
+            this.recordLayoutTransition(barrier.get(0), oldLayout, newLayout, srcAccessMask, dstAccessMask);
 
             commandBuffer.pipelineBarrier(srcStage, dstStage, 0, null, null, barrier);
         }
     }
 
-    public void transitionLayout(
+    public void recordLayoutTransition(
         VkImageMemoryBarrier barrier,
         Layout oldLayout,
         Layout newLayout,
@@ -235,6 +235,10 @@ public class PlortImage extends TrackedCloseable {
                     .layerCount(arrayLayers))
             .srcAccessMask(srcAccessMask)
             .dstAccessMask(dstAccessMask);
+    }
+
+    public PlortImageSubresourceRange entireResourceRange() {
+        return new PlortImageSubresourceRange(aspectMask, 0, mipLevels, 0, arrayLayers);
     }
 
     public void label(String name) {

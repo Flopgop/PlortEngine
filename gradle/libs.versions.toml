@@ -4,7 +4,11 @@ graal-collections = "25.0.0"
 jackson = "3.0.0"
 lwjgl = "3.4.0-SNAPSHOT"
 slf4j = "2.0.17"
-log4j = "2.25.1"
+log4j = "2.25.3"
+fastutil = "8.5.18"
+jolt = "3.5.2"
+snaploader = "1.1.1-stable"
+oshi = "6.9.2"
 
 [libraries]
 lwjgl-bom = { group = "org.lwjgl", name = "lwjgl-bom", version.ref = "lwjgl" }
@@ -31,3 +35,16 @@ log4j-core = { group = "org.apache.logging.log4j", name = "log4j-core", version.
 log4j-slf4j2-impl = { group = "org.apache.logging.log4j", name = "log4j-slf4j2-impl", version.ref = "log4j" }
 
 jetbrains-annotations = { module = "org.jetbrains:annotations", version.ref = "jetbrains-annotations" }
+
+fastutil = { module = "it.unimi.dsi:fastutil", version.ref = "fastutil" }
+
+jolt = { module = "com.github.stephengold:jolt-jni-Windows64", version.ref = "jolt" }
+jolt-windows = { module = "com.github.stephengold:jolt-jni-Windows64", version.ref = "jolt" }
+jolt-linux = { module = "com.github.stephengold:jolt-jni-Linux64", version.ref = "jolt" }
+jolt-mac = { module = "com.github.stephengold:jolt-jni-MacOSX64", version.ref = "jolt" }
+
+snaploader = { module = "io.github.electrostat-lab:snaploader", version.ref = "snaploader" }
+oshi-core = { module = "com.github.oshi:oshi-core", version.ref = "oshi" }
+
+[bundles]
+snaploader = [ "snaploader", "oshi-core" ]

@@ -16,7 +16,7 @@ struct DrawData {
     float4x4 projection;
     GlyphMeshlet *meshlets;
     uint glyph_count;
-    float unused;
+    float outline_thickness;
 }
 
 struct AssembledVertex {
@@ -88,9 +88,7 @@ float4 fragmentMain(AssembledVertex vertex) : SV_Target0 {
 
     float screenPxDistance = screenPxRange(glyph, uv) * (sd - 0.5);
 
-    float opacity = saturate(screenPxDistance + 0.5);
+    float fillOpacity = saturate(screenPxDistance + 0.5);
 
-    if (opacity < 0.1) discard;
-
-    return float4(vertex.color, opacity);
+    return float4(vertex.color, fillOpacity);
 }

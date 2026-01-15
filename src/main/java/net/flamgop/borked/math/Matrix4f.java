@@ -51,7 +51,7 @@ public class Matrix4f {
 
     public Matrix4f(Arena arena) {
         this.memory = arena.allocate(BYTES);
-        this.setIdentity();
+        this.identity();
     }
 
     public Matrix4f() {
@@ -100,7 +100,12 @@ public class Matrix4f {
         return setUnsafe(index, value);
     }
 
-    public Matrix4f setIdentity() {
+    public Matrix4f setFrom(Matrix4f other) {
+        other.getToMemorySegment(this.memory);
+        return this;
+    }
+
+    public Matrix4f identity() {
         memory.fill((byte)0);
         memory.set(F32, M00, 1);
         memory.set(F32, M11, 1);
@@ -116,7 +121,7 @@ public class Matrix4f {
     public Matrix4f perspective(float fov, float aspectRatio, float near, float far, boolean zZeroToOne) {
         float h = (float) Math.tan(fov * 0.5f);
 
-        this.setIdentity();
+        this.identity();
         this.m00(1.0f / (h * aspectRatio));
         this.m11(1.0f / h);
         this.m22((zZeroToOne ? far : far + near) / (near - far));
@@ -128,7 +133,7 @@ public class Matrix4f {
     }
 
     public Matrix4f orthographic(float left, float right, float bottom, float top, float near, float far, boolean zZeroToOne) {
-        this.setIdentity();
+        this.identity();
         this.m00(2f / (right - left));
         this.m11(2f / (top - bottom));
         this.m30(-(right + left) / (right - left));
@@ -146,26 +151,35 @@ public class Matrix4f {
     }
 
     public Matrix4f lookAt(Vector3f position, Vector3f target, Vector3f up) {
-        Vector3f dir = new Vector3f(position).subtract(target).normalize();
-        Vector3f left = new Vector3f(up).cross(dir).normalize();
-        Vector3f upn = new Vector3f(dir).cross(left).normalize();
+        try (Arena arena = Arena.ofConfined()) {
+            Vector3f dir = new Vector3f(arena, position).subtract(target).normalize();
+            Vector3f tmpUp;
+            if (Math.abs(dir.dot(up)) > 0.999f) {
+                tmpUp = new Vector3f(1,0,0);
+            } else {
+                tmpUp = up;
+            }
 
-        this.m00(left.x());
-        this.m01(upn.x());
-        this.m02(dir.x());
-        this.m03(0.0f);
-        this.m10(left.y());
-        this.m11(upn.y());
-        this.m12(dir.y());
-        this.m13(0.0f);
-        this.m20(left.z());
-        this.m21(upn.z());
-        this.m22(dir.z());
-        this.m23(0.0f);
-        this.m30(-left.dot(position));
-        this.m31(-upn.dot(position));
-        this.m32(-dir.dot(position));
-        this.m33(1.0f);
+            Vector3f left = new Vector3f(arena, tmpUp).cross(dir).normalize();
+            Vector3f upn = new Vector3f(arena, dir).cross(left).normalize();
+
+            this.m00(left.x());
+            this.m01(upn.x());
+            this.m02(dir.x());
+            this.m03(0.0f);
+            this.m10(left.y());
+            this.m11(upn.y());
+            this.m12(dir.y());
+            this.m13(0.0f);
+            this.m20(left.z());
+            this.m21(upn.z());
+            this.m22(dir.z());
+            this.m23(0.0f);
+            this.m30(-left.dot(position));
+            this.m31(-upn.dot(position));
+            this.m32(-dir.dot(position));
+            this.m33(1.0f);
+        }
 
         return this;
     }
@@ -202,6 +216,10 @@ public class Matrix4f {
     }
 
     public Vector3f transform(Vector3f v) {
+        return transform(Arena.ofAuto(), v);
+    }
+
+    public Vector3f transform(Arena arena, Vector3f v) {
         float x = v.x(), y = v.y(), z = v.z();
 
         float rx = Math.fma(m00(), x, Math.fma(m10(), y, Math.fma(m20(), z, m30())));
@@ -211,15 +229,20 @@ public class Matrix4f {
 
         if (rw != 1.0f && rw != 0.0f) {
             float invW = 1.0f / rw;
-            return new Vector3f(rx * invW, ry * invW, rz * invW);
+            return new Vector3f(arena, rx * invW, ry * invW, rz * invW);
         }
 
-        return new Vector3f(rx, ry, rz);
+        return new Vector3f(arena, rx, ry, rz);
     }
 
     public Vector3f transformDirection(Vector3f v) {
+        return transformDirection(Arena.ofAuto(), v);
+    }
+
+    public Vector3f transformDirection(Arena arena, Vector3f v) {
         float x = v.x(), y = v.y(), z = v.z();
         return new Vector3f(
+                arena,
                 Math.fma(m00(), x, Math.fma(m10(), y, m20() * z)),
                 Math.fma(m01(), x, Math.fma(m11(), y, m21() * z)),
                 Math.fma(m02(), x, Math.fma(m12(), y, m22() * z))
@@ -247,6 +270,21 @@ public class Matrix4f {
         this.m32(this.m32() * scale);
         this.m33(this.m33() * scale);
 
+        return this;
+    }
+
+    public Matrix4f scale3x3(float scale) {
+        this.m00(this.m00() * scale);
+        this.m01(this.m01() * scale);
+        this.m02(this.m02() * scale);
+
+        this.m10(this.m10() * scale);
+        this.m11(this.m11() * scale);
+        this.m12(this.m12() * scale);
+
+        this.m20(this.m20() * scale);
+        this.m21(this.m21() * scale);
+        this.m22(this.m22() * scale);
         return this;
     }
 
@@ -307,15 +345,58 @@ public class Matrix4f {
     }
 
     public Matrix4f invert() {
-        float det = determinant();
-        if (det == 0f) throw new ArithmeticException("Cannot invert a matrix with determinant of 0!");
+        float s0 = m00(), s1 = m01(), s2 = m02(), s3 = m03();
+        float s4 = m10(), s5 = m11(), s6 = m12(), s7 = m13();
+        float s8 = m20(), s9 = m21(), s10 = m22(), s11 = m23();
+        float s12 = m30(), s13 = m31(), s14 = m32(), s15 = m33();
+
+        float b00 = s8 * s13 - s9 * s12;
+        float b01 = s8 * s14 - s10 * s12;
+        float b02 = s8 * s15 - s11 * s12;
+        float b03 = s9 * s14 - s10 * s13;
+        float b04 = s9 * s15 - s11 * s13;
+        float b05 = s10 * s15 - s11 * s14;
+
+        float a00 = s0 * s5 - s1 * s4;
+        float a01 = s0 * s6 - s2 * s4;
+        float a02 = s0 * s7 - s3 * s4;
+        float a03 = s1 * s6 - s2 * s5;
+        float a04 = s1 * s7 - s3 * s5;
+        float a05 = s2 * s7 - s3 * s6;
+
+        float det = a00 * b05 - a01 * b04 + a02 * b03 + a03 * b02 - a04 * b01 + a05 * b00;
+
+        if (Math.abs(det) < 1e-9f) {
+            throw new ArithmeticException("Matrix is singular");
+        }
+
         float invDet = 1.0f / det;
 
-        return adjugate().scale(invDet);
+        m00(Math.fma(s5, b05, Math.fma(-s6, b04, s7 * b03)) * invDet);
+        m01(Math.fma(-s1, b05, Math.fma(s2, b04, -s3 * b03)) * invDet);
+        m02(Math.fma(s13, a05, Math.fma(-s14, a04, s15 * a03)) * invDet);
+        m03(Math.fma(-s9, a05, Math.fma(s10, a04, -s11 * a03)) * invDet);
+
+        m10(Math.fma(-s4, b05, Math.fma(s6, b02, -s7 * b01)) * invDet);
+        m11(Math.fma(s0, b05, Math.fma(-s2, b02, s3 * b01)) * invDet);
+        m12(Math.fma(-s12, a05, Math.fma(s14, a02, -s15 * a01)) * invDet);
+        m13(Math.fma(s8, a05, Math.fma(-s10, a02, s11 * a01)) * invDet);
+
+        m20(Math.fma(s4, b04, Math.fma(-s5, b02, s7 * b00)) * invDet);
+        m21(Math.fma(-s0, b04, Math.fma(s1, b02, -s3 * b00)) * invDet);
+        m22(Math.fma(s12, a04, Math.fma(-s13, a02, s15 * a00)) * invDet);
+        m23(Math.fma(-s8, a04, Math.fma(s9, a02, -s11 * a00)) * invDet);
+
+        m30(Math.fma(-s4, b03, Math.fma(s5, b01, -s6 * b00)) * invDet);
+        m31(Math.fma(s0, b03, Math.fma(-s1, b01, s2 * b00)) * invDet);
+        m32(Math.fma(-s12, a03, Math.fma(s13, a01, -s14 * a00)) * invDet);
+        m33(Math.fma(s8, a03, Math.fma(-s9, a01, s10 * a00)) * invDet);
+
+        return this;
     }
 
     public Matrix4f translation(float x, float y, float z) {
-        this.setIdentity();
+        this.identity();
         return setTranslation(x,y,z);
     }
 
@@ -334,9 +415,50 @@ public class Matrix4f {
         return this;
     }
 
+    public Matrix4f translate(Vector3f v) {
+        this.m30(m30() + v.x());
+        this.m31(m31() + v.y());
+        this.m32(m32() + v.z());
+        return this;
+    }
+
     public Matrix4f rotation(Quaternionf rotation) {
-        this.setIdentity();
+        this.identity();
         return setRotation(rotation);
+    }
+
+    public Quaternionf rotation() {
+        float m00 = m00(), m11 = m11(), m22 = m22();
+        float trace = m00 + m11 + m22;
+        float x, y, z, w;
+
+        if (trace > 0) {
+            float s = (float) Math.sqrt(trace + 1.0f) * 2f;
+            w = 0.25f * s;
+            x = (m12() - m21()) / s;
+            y = (m20() - m02()) / s;
+            z = (m01() - m10()) / s;
+        } else if ((m00 > m11) && (m00 > m22)) {
+            float s = (float) Math.sqrt(1.0f + m00 - m11 - m22) * 2f;
+            w = (m12() - m21()) / s;
+            x = 0.25f * s;
+            y = (m01() + m10()) / s;
+            z = (m02() + m20()) / s;
+        } else if (m11 > m22) {
+            float s = (float) Math.sqrt(1.0f + m11 - m00 - m22) * 2f;
+            w = (m20() - m02()) / s;
+            x = (m01() + m10()) / s;
+            y = 0.25f * s;
+            z = (m12() + m21()) / s;
+        } else {
+            float s = (float) Math.sqrt(1.0f + m22 - m00 - m11) * 2f;
+            w = (m01() - m10()) / s;
+            x = (m02() + m20()) / s;
+            y = (m12() + m21()) / s;
+            z = 0.25f * s;
+        }
+
+        return new Quaternionf(x, y, z, w);
     }
 
     public Matrix4f setRotation(Quaternionf rotation) {
@@ -366,8 +488,10 @@ public class Matrix4f {
     }
 
     public Matrix4f rotate(Quaternionf rotation) {
-        Matrix4f rotationMatrix = new Matrix4f().rotation(rotation);
-        return this.multiply(rotationMatrix);
+        try (Arena arena = Arena.ofConfined()) {
+            Matrix4f rotationMatrix = new Matrix4f(arena).rotation(rotation);
+            return this.multiply(rotationMatrix);
+        }
     }
 
     public Matrix4f transpose() {
@@ -505,5 +629,19 @@ public class Matrix4f {
 
     public void getToMemorySegment(MemorySegment dst) {
         dst.copyFrom(memory);
+    }
+
+    @Override
+    public String toString() {
+        return String.format(
+                "Matrix4f[m00=%.3f, m01=%.3f, m02=%.3f, m03=%.3f, " +
+                        "m10=%.3f, m11=%.3f, m12=%.3f, m13=%.3f, " +
+                        "m20=%.3f, m21=%.3f, m22=%.3f, m23=%.3f, " +
+                        "m30=%.3f, m31=%.3f, m32=%.3f, m33=%.3f]",
+                m00(), m01(), m02(), m03(),
+                m10(), m11(), m12(), m13(),
+                m20(), m21(), m22(), m23(),
+                m30(), m31(), m32(), m33()
+        );
     }
 }

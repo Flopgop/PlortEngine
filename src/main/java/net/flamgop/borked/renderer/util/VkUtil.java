@@ -1,9 +1,11 @@
 package net.flamgop.borked.renderer.util;
 
 import net.flamgop.borked.renderer.PlortCommandBuffer;
+import net.flamgop.borked.renderer.PlortRenderContext;
 import net.flamgop.borked.renderer.exception.VulkanException;
 import net.flamgop.borked.renderer.image.AspectMask;
 import net.flamgop.borked.renderer.image.PlortImage;
+import net.flamgop.borked.renderer.material.PlortTexture;
 import net.flamgop.borked.renderer.memory.PlortBuffer;
 import net.flamgop.borked.renderer.pipeline.PipelineStage;
 import org.lwjgl.system.MemoryStack;

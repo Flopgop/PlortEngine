@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.lwjgl.vulkan.VK10.*;
+import static org.lwjgl.vulkan.VK12.VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
 
 public class PlortDescriptorSetLayout extends TrackedCloseable {
     private final PlortDevice device;

@@ -3,10 +3,15 @@ package net.flamgop.borked.renderer;
 import net.flamgop.borked.renderer.image.PlortFilter;
 import net.flamgop.borked.renderer.image.PlortImage;
 import net.flamgop.borked.renderer.memory.PlortBuffer;
-import net.flamgop.borked.renderer.model.IndexType;
+import net.flamgop.borked.renderer.memory.IndexType;
 import net.flamgop.borked.renderer.pipeline.PipelineBindPoint;
 import net.flamgop.borked.renderer.pipeline.PlortPipeline;
 import net.flamgop.borked.renderer.pipeline.PlortPipelineLayout;
+import net.flamgop.borked.renderer.pipeline.barrier.PlortBufferMemoryBarrier;
+import net.flamgop.borked.renderer.pipeline.barrier.PlortImageMemoryBarrier;
+import net.flamgop.borked.renderer.pipeline.barrier.PlortMemoryBarrier;
+import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.Nullable;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
@@ -35,32 +40,37 @@ public class PlortCommandBuffer implements AutoCloseable {
     }
 
     public void begin(VkCommandBufferBeginInfo pBeginInfo) {
+        if (begun) throw new IllegalStateException("A buffer which has already begun cannot begin again.");
         vkBeginCommandBuffer(handle, pBeginInfo);
         begun = true;
     }
 
+    private void checkBegun() {
+        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not begun yet. Either call begin first, or if this buffer has already begun use the constructor to specify.");
+    }
+
     public void bindPipeline(PipelineBindPoint bindPoint, PlortPipeline pipeline) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdBindPipeline(handle, bindPoint.qualifier(), pipeline.handle());
     }
 
     public void bindDescriptorSets(PipelineBindPoint bindPoint, PlortPipelineLayout layout, int firstSet, LongBuffer pDescriptorSets, IntBuffer pDynamicOffsets) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdBindDescriptorSets(handle, bindPoint.qualifier(), layout.handle(), firstSet, pDescriptorSets, pDynamicOffsets);
     }
 
     public void clearColorImage(PlortImage image, PlortImage.Layout imageLayout, VkClearColorValue pColor, VkImageSubresourceRange.Buffer pRanges) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdClearColorImage(handle, image.handle(), imageLayout.qualifier(), pColor, pRanges);
     }
 
     public void dispatch(int groupCountX, int groupCountY, int groupCountZ) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdDispatch(handle, groupCountX, groupCountY, groupCountZ);
     }
 
     public void dispatchIndirect(PlortBuffer buffer, long offset) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdDispatchIndirect(handle, buffer.handle(), offset);
     }
 
@@ -69,62 +79,62 @@ public class PlortCommandBuffer implements AutoCloseable {
     // TODO: vkCmdWaitEvents
 
     public void pushConstants(PlortPipelineLayout layout, int stageFlags, int offset, ByteBuffer values) { // note: while lwjgl VK10 implements other buffers for this method, most push constants are complex enough to need to be made of multiple values and thus should be ByteBuffers. All other buffers can be reinterpreted as ByteBuffers.
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdPushConstants(handle, layout.handle(), stageFlags, offset, values);
     }
 
     public void setViewport(int firstViewport, VkViewport.Buffer pViewports) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdSetViewport(handle, firstViewport, pViewports);
     }
 
     public void setScissor(int firstScissor, VkRect2D.Buffer pScissors) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdSetScissor(handle, firstScissor, pScissors);
     }
 
     public void setLineWidth(float lineWidth) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdSetLineWidth(handle, lineWidth);
     }
 
     public void setDepthBias(float depthBiasConstantFactor, float depthBiasClamp, float depthBiasSlopeFactor) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdSetDepthBias(handle, depthBiasConstantFactor, depthBiasClamp, depthBiasSlopeFactor);
     }
 
     public void setBlendConstants(FloatBuffer blendConstants) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdSetBlendConstants(handle, blendConstants);
     }
 
     public void setDepthBounds(float minDepthBounds, float maxDepthBounds) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdSetDepthBounds(handle, minDepthBounds, maxDepthBounds);
     }
 
     public void setStencilCompareMask(int faceMask, int compareMask) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdSetStencilCompareMask(handle, faceMask, compareMask);
     }
 
     public void setStencilWriteMask(int faceMask, int writeMask) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdSetStencilWriteMask(handle, faceMask, writeMask);
     }
 
     public void setStencilReference(int faceMask, int reference) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdSetStencilReference(handle, faceMask, reference);
     }
 
     public void bindIndexBuffer(PlortBuffer buffer, long offset, IndexType indexType) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdBindIndexBuffer(handle, buffer.handle(), offset, indexType.qualifier());
     }
 
     public void bindVertexBuffers(int firstBinding, PlortBuffer[] buffers, long[] offsets) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         try (MemoryStack stack = MemoryStack.stackPush()) {
             LongBuffer pBuffers = stack.callocLong(buffers.length);
             pBuffers.put(Arrays.stream(buffers).mapToLong(PlortBuffer::handle).toArray()).flip();
@@ -135,97 +145,126 @@ public class PlortCommandBuffer implements AutoCloseable {
     }
 
     public void bindVertexBuffers(int firstBinding, LongBuffer pBuffers, LongBuffer pOffsets) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdBindVertexBuffers(handle, firstBinding, pBuffers, pOffsets);
     }
 
     public void draw(int vertexCount, int instanceCount, int firstVertex, int firstInstance) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdDraw(handle, vertexCount, instanceCount, firstVertex, firstInstance);
     }
 
     public void drawIndexed(int indexCount, int instanceCount, int firstIndex, int vertexOffset, int firstInstance) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdDrawIndexed(handle, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
     }
 
     public void drawIndirect(PlortBuffer buffer, long offset, int drawCount, int stride) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdDrawIndirect(handle, buffer.handle(), offset, drawCount, stride);
     }
 
     public void drawIndexedIndirect(PlortBuffer buffer, long offset, int drawCount, int stride) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdDrawIndexedIndirect(handle, buffer.handle(), offset, drawCount, stride);
     }
 
     public void blitImage(PlortImage srcImage, PlortImage.Layout srcImageLayout, PlortImage dstImage, PlortImage.Layout dstImageLayout, VkImageBlit.Buffer pRegions, PlortFilter filter) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdBlitImage(handle, srcImage.handle(), srcImageLayout.qualifier(), dstImage.handle(), dstImageLayout.qualifier(), pRegions, filter.qualifier());
     }
 
     public void clearDepthStencilImage(PlortImage image, PlortImage.Layout imageLayout, VkClearDepthStencilValue pDepthStencil, VkImageSubresourceRange.Buffer pRanges) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdClearDepthStencilImage(handle, image.handle(), imageLayout.qualifier(), pDepthStencil, pRanges);
     }
 
     public void clearClearAttachments(VkClearAttachment.Buffer pAttachments, VkClearRect.Buffer pRects) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdClearAttachments(handle, pAttachments, pRects);
     }
 
     public void resolveImage(PlortImage srcImage, PlortImage.Layout srcImageLayout, PlortImage dstImage, PlortImage.Layout dstImagelayout, VkImageResolve.Buffer pRegions) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdResolveImage(handle, srcImage.handle(), srcImageLayout.qualifier(), dstImage.handle(), dstImagelayout.qualifier(), pRegions);
     }
 
     public void beginRenderPass(VkRenderPassBeginInfo pRenderPassBegin, int contents) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdBeginRenderPass(handle, pRenderPassBegin, contents);
     }
 
     public void nextSubpass(int contents) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdNextSubpass(handle, contents);
     }
 
     public void endRenderPass() {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdEndRenderPass(handle);
     }
 
     public void updateBuffer(PlortBuffer dstBuffer, long dstOffset, ByteBuffer data) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdUpdateBuffer(handle, dstBuffer.handle(), dstOffset, data);
     }
 
     public void copyBuffer(PlortBuffer src, PlortBuffer dst, VkBufferCopy.Buffer pRegions) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdCopyBuffer(handle, src.handle(), dst.handle(), pRegions);
     }
 
     public void copyImage(PlortImage srcImage, PlortImage.Layout srcImageLayout, PlortImage dstImage, PlortImage.Layout dstImageLayout, VkImageCopy.Buffer pRegions) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdCopyImage(handle, srcImage.handle(), srcImageLayout.qualifier(), dstImage.handle(), dstImageLayout.qualifier(), pRegions);
     }
 
     public void copyBufferToImage(PlortBuffer srcBuffer, PlortImage dstImage, PlortImage.Layout dstImageLayout, VkBufferImageCopy.Buffer pRegions) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdCopyBufferToImage(handle, srcBuffer.handle(), dstImage.handle(), dstImageLayout.qualifier(), pRegions);
     }
 
     public void copyImageToBuffer(PlortImage srcImage, PlortImage.Layout srcImageLayout, PlortBuffer dstBuffer, VkBufferImageCopy.Buffer pRegions) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdCopyImageToBuffer(handle, srcImage.handle(), srcImageLayout.qualifier(), dstBuffer.handle(), pRegions);
     }
 
     public void fillBuffer(PlortBuffer dstBuffer, long dstOffset, long size, int data) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdFillBuffer(handle, dstBuffer.handle(), dstOffset, size, data);
     }
 
-    public void pipelineBarrier(int srcStageMask, int dstStageMask, int dependencyFlags, VkMemoryBarrier.Buffer pMemoryBarriers, VkBufferMemoryBarrier.Buffer pBufferMemoryBarriers, VkImageMemoryBarrier.Buffer pImageMemoryBarriers) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+    public void pipelineBarrier(int srcStageMask, int dstStageMask, int dependencyFlags, PlortMemoryBarrier @Nullable [] memoryBarriers, PlortBufferMemoryBarrier @Nullable [] bufferMemoryBarriers, PlortImageMemoryBarrier @Nullable [] imageMemoryBarriers) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            pipelineBarrier(stack, srcStageMask, dstStageMask, dependencyFlags, memoryBarriers, bufferMemoryBarriers, imageMemoryBarriers);
+        }
+    }
+
+    public void pipelineBarrier(MemoryStack stack, int srcStageMask, int dstStageMask, int dependencyFlags, PlortMemoryBarrier @Nullable [] memoryBarriers, PlortBufferMemoryBarrier @Nullable [] bufferMemoryBarriers, PlortImageMemoryBarrier @Nullable [] imageMemoryBarriers) {
+        checkBegun();
+        final VkMemoryBarrier.Buffer pMemoryBarriers;
+        final VkBufferMemoryBarrier.Buffer pBufferMemoryBarriers;
+        final VkImageMemoryBarrier.Buffer pImageMemoryBarriers;
+        if (memoryBarriers != null) {
+            pMemoryBarriers = VkMemoryBarrier.calloc(memoryBarriers.length, stack);
+            for (PlortMemoryBarrier barrier : memoryBarriers) barrier.get(pMemoryBarriers.get());
+            pMemoryBarriers.flip();
+        } else pMemoryBarriers = null;
+        if (bufferMemoryBarriers != null) {
+            pBufferMemoryBarriers = VkBufferMemoryBarrier.calloc(bufferMemoryBarriers.length, stack);
+            for (PlortBufferMemoryBarrier barrier : bufferMemoryBarriers) barrier.get(pBufferMemoryBarriers.get());
+            pBufferMemoryBarriers.flip();
+        } else pBufferMemoryBarriers = null;
+        if (imageMemoryBarriers != null) {
+            pImageMemoryBarriers = VkImageMemoryBarrier.calloc(imageMemoryBarriers.length, stack);
+            for (PlortImageMemoryBarrier barrier : imageMemoryBarriers) barrier.get(stack, pImageMemoryBarriers.get());
+            pImageMemoryBarriers.flip();
+        } else pImageMemoryBarriers = null;
+        pipelineBarrier(srcStageMask, dstStageMask, dependencyFlags, pMemoryBarriers, pBufferMemoryBarriers, pImageMemoryBarriers);
+    }
+
+    @ApiStatus.Internal
+    public void pipelineBarrier(int srcStageMask, int dstStageMask, int dependencyFlags, @Nullable VkMemoryBarrier.Buffer pMemoryBarriers, @Nullable VkBufferMemoryBarrier.Buffer pBufferMemoryBarriers, @Nullable VkImageMemoryBarrier.Buffer pImageMemoryBarriers) {
         vkCmdPipelineBarrier(handle, srcStageMask, dstStageMask, dependencyFlags, pMemoryBarriers, pBufferMemoryBarriers, pImageMemoryBarriers);
     }
 
@@ -235,22 +274,22 @@ public class PlortCommandBuffer implements AutoCloseable {
     // TODO: vkCmdWriteTimestamp
 
     public void executeCommands(PointerBuffer pCommandBuffers) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdExecuteCommands(handle, pCommandBuffers);
     }
 
     public void drawMeshTasksEXT(int groupCountX, int groupCountY, int groupCountZ) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdDrawMeshTasksEXT(handle, groupCountX, groupCountY, groupCountZ);
     }
 
     public void drawMeshTasksIndirectEXT(PlortBuffer buffer, long offset, int drawCount, int stride) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdDrawMeshTasksIndirectEXT(handle, buffer.handle(), offset, drawCount, stride);
     }
 
     public void drawMeshTasksIndirectCountEXT(PlortBuffer buffer, long offset, PlortBuffer countBuffer, long countBufferOffset, int maxDrawCount, int stride) {
-        if (!begun) throw new IllegalStateException("Can't record commands to a command buffer that has not began yet. Either call begin first, or if this buffer has already began use the constructor to specify.");
+        checkBegun();
         vkCmdDrawMeshTasksIndirectCountEXT(handle, buffer.handle(), offset, countBuffer.handle(), countBufferOffset, maxDrawCount, stride);
     }
 

@@ -41,7 +41,7 @@ public class PlortBufferedDescriptorSetPool extends TrackedCloseable {
     }
 
     public void label(String name) {
-        this.pool().label(name);
+        this.pool().label(name + " Buffered");
     }
 
     public long[] currentDescriptorSets() {

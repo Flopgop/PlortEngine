@@ -1,14 +1,13 @@
 package net.flamgop.borked;
 
-import net.flamgop.borked.renderer.descriptor.*;
+import net.flamgop.borked.camera.PlayerController;
+import net.flamgop.borked.math.Vector3f;
+import net.flamgop.borked.physics.next.PhysicsContext;
 import net.flamgop.borked.renderer.PlortRenderContext;
-import net.flamgop.borked.renderer.model.PlortModel;
-import net.flamgop.borked.renderer.renderpass.*;
-import net.flamgop.borked.renderer.image.*;
-import net.flamgop.borked.renderer.memory.*;
-import net.flamgop.borked.renderer.pipeline.*;
+import net.flamgop.borked.model.PlortModel;
 import net.flamgop.borked.renderer.util.VkUtil;
 import net.flamgop.borked.renderer.window.CursorState;
+import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,9 +16,13 @@ public class Game {
     private static final Logger LOGGER = LoggerFactory.getLogger(Game.class);
 
     private final PlortRenderContext renderContext;
-    private final CameraController cameraController;
+    private final PlayerController playerController;
     private final World world;
     private final Renderer renderer;
+    private final PhysicsContext physics;
+
+    private final PlortModel cube;
+    private final PlortModel scene;
 
     public Game() {
         LOGGER.debug("This is a debug string");
@@ -27,15 +30,21 @@ public class Game {
         LOGGER.warn("This is a warning string");
         LOGGER.error("This is an error string");
 
-        renderContext = new PlortRenderContext("Game", VkUtil.makeApiVersion(1,0,0,0));
+        this.physics = new PhysicsContext();
+        this.renderContext = new PlortRenderContext("Game", VkUtil.makeApiVersion(1,0,0,0));
 
-        this.cameraController = new CameraController(renderContext.allocator(), renderContext.window(), 90, 0.1f);
-        this.world = new World(renderContext.allocator(), cameraController);
+        this.playerController = new PlayerController(physics, renderContext, renderContext.window(), 90, 0.1f);
+        this.world = new World(physics, renderContext, playerController);
 
-        this.renderer = new Renderer(renderContext, cameraController, world);
+        cube = new PlortModel(renderContext, "cube.glb");
 
-        world.entities.add(new Entity(new PlortModel(renderContext, "1_coffeeShop_post.glb"), renderContext.allocator()));
-        world.recreateAABBBuffer();
+        this.renderer = new Renderer(renderContext, playerController, world);
+
+        scene = new PlortModel(renderContext, "test_scene.glb");
+        world.addEntity(new Entity(physics, scene, renderContext.allocator()));
+        for (int i = 0; i < renderContext.swapchain().imageCount(); i++) {
+            world.recreateAABBBuffer(i);
+        }
     }
 
     public void start() {
@@ -54,9 +63,21 @@ public class Game {
             deltaTime = (frameEnd - prevFrameStart) / 1e+9;
             prevFrameStart = System.nanoTime();
 
+            if (renderContext.window().input().keyPressed(GLFW.GLFW_KEY_R)) {
+                GameState.renderDebug = !GameState.renderDebug;
+            }
+
+            if (renderContext.window().input().keyPressed(GLFW.GLFW_KEY_Q)) {
+                Entity e = new Entity(physics, cube, renderContext.allocator());
+                e.setPosition(new Vector3f(playerController.position().add(0, 5, 0)));
+                world.addEntity(e);
+            }
+
             float fdt = (float) deltaTime;
-            cameraController.update(world, fdt);
+            playerController.update(world, physics, fdt);
             world.update(fdt);
+            world.upload(renderer.currentFrameModInFlight());
+            world.recreateAABBBuffer(renderer.currentFrameModInFlight());
         }
         cleanup();
     }
@@ -65,7 +86,9 @@ public class Game {
         renderer.waitIdle();
 
         world.close();
-        cameraController.close();
+        playerController.close();
+        cube.close();
+        scene.close();
 
         renderer.close();
 

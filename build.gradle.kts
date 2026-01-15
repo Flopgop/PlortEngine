@@ -58,4 +58,17 @@ dependencies {
     implementation(libs.log4j.core)
     implementation(libs.log4j.slf4j2.impl)
     compileOnly(libs.jetbrains.annotations)
+    implementation(libs.fastutil)
+
+    implementation(libs.jolt)
+    runtimeOnly(variantOf(libs.jolt.windows) {
+        classifier("DebugSp")
+    })
+    runtimeOnly(variantOf(libs.jolt.linux) {
+        classifier("DebugSp")
+    })
+    runtimeOnly(variantOf(libs.jolt.mac) {
+        classifier("DebugSp")
+    })
+    implementation(libs.bundles.snaploader)
 }

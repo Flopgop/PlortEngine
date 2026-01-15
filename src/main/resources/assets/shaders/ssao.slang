@@ -39,158 +39,83 @@ static const float GTAO_THICKNESS_FALLOFF = 2.0;
 static const float GTAO_INTENSITY = 25.0;
 
 float computeGTAO(float3 position, float3 normal, uint2 pixel_coord) {
-    uint width, height, levels;
-    g_position.GetDimensions(0, width, height, levels);
+    uint width, height;
+    g_position.GetDimensions(width, height);
     float2 screen_size = float2(width, height);
     float2 uv = (pixel_coord + 0.5) / screen_size;
 
-    uint noise_width, noise_height, noise_levels;
-    noise_texture.GetDimensions(0, noise_width, noise_height, noise_levels);
+    uint2 noise_res;
+    noise_texture.GetDimensions(noise_res.x, noise_res.y);
+    float3 noise = noise_texture.Load(uint3(pixel_coord % noise_res, 0)).xyz;
 
-    float2 noise_uv = (uv / float2(noise_width, noise_height)) * 4.0;
-    float3 random_vec = normalize(noise_texture.Sample(noise_uv).xyz);
+    float rotation_angle = noise.x * PI;
+    float step_jitter = noise.y;
 
-    float3 tangent = normalize(random_vec - normal * dot(random_vec, normal));
-    float3 bitangent = cross(normal, tangent);
-    float3x3 tbn = float3x3(tangent, bitangent, normal);
+    float3 V = normalize(-position);
 
-    float occlusion = 0.0;
-
-    const float max_r_sq = GTAO_RADIUS_WORLD * GTAO_RADIUS_WORLD;
+    float total_occlusion = 0;
 
     for (int d = 0; d < NUM_DIRECTIONS; d++) {
-        float angle = 2.0 * PI * d / NUM_DIRECTIONS;
+        float angle = (float(d) + rotation_angle) * (PI / NUM_DIRECTIONS);
         float2 dir_2d = float2(cos(angle), sin(angle));
 
-        float random_angle = random_vec.x * 2.0 * PI;
-        float cos_r = cos(random_angle);
-        float sin_r = sin(random_angle);
-        float2 rotated_dir_2d = float2(
-            dir_2d.x * cos_r - dir_2d.y * sin_r,
-            dir_2d.x * sin_r + dir_2d.y * cos_r
-        );
+        float3 slice_dir = normalize(float3(dir_2d, 0));
+        float3 plane_normal = normalize(cross(slice_dir, V));
+        if (length(cross(slice_dir, V)) < 0.0001) continue;
+        float3 proj_normal = normal - plane_normal * dot(normal, plane_normal);
+        float proj_len = length(proj_normal);
 
-        float3 ray_tbn = normalize(float3(rotated_dir_2d, 0.0));
+        if (proj_len < 0.0001) {
+            total_occlusion += 1.0;
+            continue;
+        }
 
-        float3 ray_view = mul(tbn, ray_tbn);
+        float3 projected_n = normalize(proj_normal);
+        float n_dot_v = clamp(dot(projected_n, V), -0.99999, 0.99999);
+        float n = acos(n_dot_v) * sign(dot(slice_dir, projected_n));
 
-        float depth_sum = 0.0;
-        float step_size_view = GTAO_RADIUS_WORLD / (GTAO_SAMPLES_PER_DIRECTION + 1.0);
+        float h1 = n - PI / 2.0;
+        float h2 = n + PI / 2.0;
 
-        float min_depth_along_ray = 1e38;
+        float screen_radius = (GTAO_RADIUS_WORLD * view_data.projection[1][1]) / -position.z;
+        screen_radius *= (height / 2.0);
 
-        for (int s = 1; s <= GTAO_SAMPLES_PER_DIRECTION; s++) {
-            float3 sample_pos_view = position + ray_view * (s * step_size_view);
-            float4 offset_clip = mul(view_data.projection, float4(sample_pos_view, 1.0));
-            float2 offset_ndc = offset_clip.xy / offset_clip.w;
-            float2 sample_uv = offset_ndc * 0.5f + 0.5f;
+        [unroll]
+        for (int side = 0; side < 2; side++) {
+            float2 search_dir = (side == 0) ? dir_2d : -dir_2d;
+            float current_h = (side == 0) ? h1 : h2;
 
-            if (any(sample_uv < 0.0) || any(sample_uv > 1.0)) {
-                min_depth_along_ray = min(min_depth_along_ray, 1e38);
-            } else {
-                float3 sampled_pos = g_position.Sample(sample_uv).xyz;
-                min_depth_along_ray = min(min_depth_along_ray, sampled_pos.z);
+            for (int s = 1; s <= NUM_STEPS; s++) {
+                float step_dist = (float(s) + step_jitter) / (float(NUM_STEPS) + 1.0);
+                float2 offset_uv = uv + (search_dir * step_dist * (screen_radius / screen_size));
+
+                if (any(offset_uv < 0) || any(offset_uv > 1)) break;
+
+                float3 sample_pos = g_position.SampleLevel(offset_uv, 0).xyz;
+                float3 horizon_vec = sample_pos - position;
+                float dist_sq = dot(horizon_vec, horizon_vec);
+
+                if (dist_sq > 0.0001 && dist_sq < (GTAO_RADIUS_WORLD * GTAO_RADIUS_WORLD)) {
+                    float3 v_sample = normalize(horizon_vec);
+                    float h_dot_v = clamp(dot(v_sample, V), -0.99999, 0.99999);
+                    float angle_h = acos(h_dot_v);
+
+                    if (side == 0) h1 = max(h1, n - angle_h);
+                    else h2 = min(h2, n + angle_h);
+                }
             }
         }
 
-        float3 V = float3(0.0, 0.0, min_depth_along_ray) - position; 
-        V = float3(position.xy, min_depth_along_ray) - position;
+        h1 = n + clamp(h1 - n, -PI / 2.0, PI / 2.0);
+        h2 = n + clamp(h2 - n, -PI / 2.0, PI / 2.0);
 
-        float closest_depth = min_depth_along_ray;
-        float depth_diff = closest_depth - position.z;
-        float length_along_ray = max(0.0, depth_diff);
+        float intensity = (cos(n) + 2.0 * h1 * sin(n) - cos(2.0 * h1 - n) +
+                           cos(n) + 2.0 * h2 * sin(n) - cos(2.0 * h2 - n)) / 4.0;
 
-        float attenuation = max(0.0, 1.0 - pow(length_along_ray / GTAO_RADIUS_WORLD, GTAO_THICKNESS_FALLOFF));
-
-        float nDotV = dot(normal, ray_view);
-        float angle_factor = saturate(nDotV); 
-        float dir_occlusion = length_along_ray * angle_factor * attenuation;
-
-        occlusion += dir_occlusion;
+        if (!isnan(intensity)) total_occlusion += saturate(intensity);
     }
 
-    occlusion /= NUM_DIRECTIONS;
-    occlusion *= GTAO_INTENSITY; 
-
-    return saturate(1.0 - occlusion);
-}
-
-float computeHBAO(float3 position, float3 normal, uint2 pixel_coord) { // note this is NOT HBAO and it's implemented more like GTAO, but wrong.
-    float radius = 0.02 / position.z; // perspective scale
-    float occlusion = 0.0;
-
-    uint width, height, levels;
-    g_position.GetDimensions(0, width, height, levels);
-    float2 screen_size = float2(width, height);
-    float2 uv = (pixel_coord + 0.5) / screen_size;
-    
-    float3 rand = normalize(noise_texture.Sample(uv).xyz);
-    float2 cos_sin = float2(cos(rand.x * 2 * PI), sin(rand.x * 2 * PI));
-
-    for (int d = 0; d < NUM_DIRECTIONS; d++) {
-        float angle = 2 * PI * d / NUM_DIRECTIONS;
-        float2 dir = float2(cos(angle), sin(angle));
-
-        dir = float2(dir.x * cos_sin.x - dir.y * cos_sin.y, dir.x * cos_sin.y + dir.y * cos_sin.x);
-
-        dir.x *= (screen_size.y / screen_size.x);
-
-        float step_size_uv = radius / (NUM_STEPS + 1);
-
-        float rayLength = radius / (NUM_STEPS + 1);
-        for (int s = 1; s <= NUM_STEPS; s++) {
-            float2 offset = dir * step_size_uv * s;
-            float2 sample_uv = uv + offset;
-
-            if (any(sample_uv < 0) || any(sample_uv > 1)) continue;
-
-            float3 sample_pos = g_position.Sample(sample_uv).xyz;
-
-            if (sample_pos.z > 1000.0) continue;
-
-            float3 V = sample_pos - position;
-            float dist2 = dot(V, V);
-            float nDotV = dot(normal, normalize(V));
-
-            float attenuation = saturate(1.0 - dist2 / (0.02 * 0.02 * 2.0));
-            occlusion += saturate(nDotV - 0.05) * attenuation;
-        }
-    }
-
-    occlusion /= NUM_DIRECTIONS * NUM_STEPS;
-    return saturate(1.0 - occlusion * 5.0);
-}
-
-float computeSSAO(float3 position, float3 normal, uint2 uv) {
-    uint noise_width, noise_height, noise_levels;
-    noise_texture.GetDimensions(0, noise_width, noise_height, noise_levels);
-    float3 random_vec = normalize(noise_texture.Sample((uv / float2(noise_width, noise_height)) * 3).xyz);
-
-    float3 tangent = normalize(random_vec - normal * dot(random_vec, normal));
-    float3 bitangent = cross(normal, tangent);
-    float3x3 tbn = float3x3(tangent, bitangent, normal);
-
-    const float radius = 0.02f;
-    const float bias = 0.02f;
-    float occlusion = 0.0f;
-
-    [unroll]
-    for (int i = 0; i < KERNEL_SIZE; i++) {
-        float3 sample_pos = position + mul(tbn, ssao_kernel[i]) * radius;
-
-        float4 offset = mul(view_data.projection, float4(sample_pos, 1.0));
-        offset.xyz /= offset.w;
-        float2 offset_uv = offset.xy * 0.5f + 0.5f;
-
-        float4 sample_view_pos = g_position.Sample(offset_uv);
-        if (sample_view_pos.a <= 0.1) continue;
-
-        float range_check = smoothstep(0.0, 1.0, radius / abs(position.z - sample_view_pos.z));
-        occlusion += (sample_view_pos.z > sample_pos.z + bias ? 1.0 : 0.0) * range_check;
-    }
-
-    occlusion = 1.0 - (occlusion / KERNEL_SIZE);
-    return occlusion;
+    return saturate(total_occlusion / NUM_DIRECTIONS);
 }
 
 [shader("compute")]

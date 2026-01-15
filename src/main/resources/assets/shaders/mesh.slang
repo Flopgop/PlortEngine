@@ -145,6 +145,8 @@ ComputedFragment fragmentMain(
     float2 uv = vertex.uv.xy;
 
     float4 sampledColor = albedo.Sample(uv);
+    if (sampledColor.a < 0.1) discard;
+
     float3 sampledNormal = normal_map.Sample(uv).xyz * 2 - 1;
 
     float3x3 tbn = float3x3(vertex.tangent, vertex.bitangent, vertex.normal);
