@@ -75,6 +75,20 @@ public class PlortSwapchain extends TrackedCloseable {
         }
     }
 
+    public int acquireNextImage(int syncSlot) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            IntBuffer pImageIndex = stack.callocInt(1);
+            int result = vkAcquireNextImageKHR(device.handle(), this.handle, Long.MAX_VALUE, syncObjects[syncSlot].imageAvailableSemaphore(), VK_NULL_HANDLE, pImageIndex);
+            int imageIndex = pImageIndex.get(0);
+            if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+                return -1;
+            } else if (result != VK_SUBOPTIMAL_KHR) {
+                VkUtil.check(result);
+            }
+            return imageIndex;
+        }
+    }
+
     public SwapchainImage image(int index) {
         return images[index];
     }

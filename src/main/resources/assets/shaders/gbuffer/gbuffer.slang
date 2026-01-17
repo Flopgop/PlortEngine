@@ -84,7 +84,7 @@ ConstantBuffer<ShadowData*> player_shadow_data;
 
 [shader("fragment")]
 float4 fragmentMain(AssembledVertex vertex) : SV_Target0 {
-    float2 uv = vertex.uv.xy;
+    float2 uv = vertex.uv;
     
     float4 position = g_position.Sample(uv);
 
@@ -100,13 +100,15 @@ float4 fragmentMain(AssembledVertex vertex) : SV_Target0 {
     float4 godrays = sun_light_shafts(view_data, scene_data, shadow, player_shadow, player_shadow_data, uv, world_pos);
 
     if (position.a <= 0.1) {
-        return float4(godrays.xyz, 1.0);
+        return float4(godrays.rgb, 1.0);
     }
 
     float3 normal = normalize(g_normal.Sample(uv).xyz);
     float3 albedo = g_albedo.Sample(uv).rgb;
 
-    float shadow = compute_shadow(shadow, player_shadow, scene_data->shadow, player_shadow_data, world_pos);
+    float2 noise_uv = (uv * meta_data.screen_size) / 512.0;
+    noise_uv *= 10.0;
+    float shadow = compute_shadow_soft(noise_texture, shadow, player_shadow, scene_data->shadow, player_shadow_data, world_pos, noise_uv);
 
     float3 lit = shadow * compute_lighting(scene_data, view_data, position.xyz, normal, albedo, ssao.Sample(uv).r);
 

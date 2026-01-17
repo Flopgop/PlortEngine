@@ -73,7 +73,7 @@ public class PlortInstance extends TrackedCloseable {
     }
 
     public PlortInstance(int apiVersion, String engineName, int engineVersion, String appName, int appVersion, List<String> enabledLayerNames, List<String> enabledExtensionNames, boolean includeGLFWExtensions) {
-        this(apiVersion, engineName, engineVersion, appName, appVersion, enabledLayerNames, enabledExtensionNames, 0, true);
+        this(apiVersion, engineName, engineVersion, appName, appVersion, enabledLayerNames, enabledExtensionNames, 0, includeGLFWExtensions);
     }
 
     public VkInstance handle() {

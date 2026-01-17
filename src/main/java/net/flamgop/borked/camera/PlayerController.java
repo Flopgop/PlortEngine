@@ -103,7 +103,7 @@ public class PlayerController implements AutoCloseable {
             private final Vector3f mathVector = new Vector3f();
             @Override
             public void onContactAdded(long characterVa, int bodyId2, int subShapeId2, double contactLocationX, double contactLocationY, double contactLocationZ, float contactNormalX, float contactNormalY, float contactNormalZ, long settingsVa) {
-                LOGGER.debug("Added character contact at {} {} {} with normal {} {} {}, settings va is {}", contactLocationX, contactLocationY, contactLocationZ, contactNormalX, contactNormalY, contactNormalZ, settingsVa);
+//                LOGGER.debug("Added character contact at {} {} {} with normal {} {} {}, settings va is {}", contactLocationX, contactLocationY, contactLocationZ, contactNormalX, contactNormalY, contactNormalZ, settingsVa);
 
                 if (characterVa != character.va()) throw new IllegalStateException("Our character contact generator somehow generated a contact for a *different* character");
 

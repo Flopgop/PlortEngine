@@ -6,6 +6,7 @@ import net.flamgop.borked.renderer.memory.TrackedCloseable;
 import net.flamgop.borked.renderer.pipeline.PipelineBindPoint;
 import net.flamgop.borked.renderer.pipeline.PipelineStage;
 import net.flamgop.borked.renderer.util.VkUtil;
+import org.jetbrains.annotations.Nullable;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
 
@@ -28,7 +29,7 @@ public class PlortRenderPass extends TrackedCloseable {
     private int width, height;
 
     @SuppressWarnings("resource")
-    public PlortRenderPass(PlortDevice device, int framesInFlight, List<PlortAttachment> attachments, List<PlortAttachmentReference> colorReferences, PlortAttachmentReference depthReference) {
+    public PlortRenderPass(PlortDevice device, int framesInFlight, List<PlortAttachment> attachments, @Nullable List<PlortAttachmentReference> colorReferences, @Nullable PlortAttachmentReference depthReference) {
         super();
         this.device = device;
         this.attachments = Collections.unmodifiableList(attachments);
@@ -49,22 +50,28 @@ public class PlortRenderPass extends TrackedCloseable {
                         .finalLayout(attachment.finalLayout().qualifier());
             }
 
-            VkAttachmentReference.Buffer colorRefs = VkAttachmentReference.calloc(colorReferences.size(), stack);
+            int colorReferenceCount = colorReferences != null ? colorReferences.size() : 0;
+            VkAttachmentReference.Buffer colorRefs;
+            if (colorReferences != null) {
+                colorRefs = VkAttachmentReference.calloc(colorReferenceCount, stack);
+                for (int i = 0; i < colorReferenceCount; i++) {
+                    PlortAttachmentReference reference = colorReferences.get(i);
+                    colorRefs.get(i)
+                            .attachment(reference.attachment())
+                            .layout(reference.layout().qualifier());
+                }
+            } else colorRefs = null;
 
-            for (int i = 0; i < colorReferences.size(); i++) {
-                PlortAttachmentReference reference = colorReferences.get(i);
-                colorRefs.get(i)
-                        .attachment(reference.attachment())
-                        .layout(reference.layout().qualifier());
-            }
-
-            VkAttachmentReference depthRef = VkAttachmentReference.calloc(stack)
-                    .attachment(depthReference.attachment())
-                    .layout(depthReference.layout().qualifier());
+            VkAttachmentReference depthRef;
+            if (depthReference != null) {
+                depthRef = VkAttachmentReference.calloc(stack)
+                        .attachment(depthReference.attachment())
+                        .layout(depthReference.layout().qualifier());
+            } else depthRef = null;
 
             VkSubpassDescription.Buffer subpass = VkSubpassDescription.calloc(1, stack)
                     .pipelineBindPoint(PipelineBindPoint.GRAPHICS.qualifier())
-                    .colorAttachmentCount(colorReferences.size())
+                    .colorAttachmentCount(colorReferenceCount)
                     .pColorAttachments(colorRefs)
                     .pDepthStencilAttachment(depthRef);
 

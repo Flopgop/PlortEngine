@@ -28,7 +28,7 @@ public class World implements AutoCloseable {
     private final BufferedObject<PlortBuffer> aabbBuffer;
 
     private final PlortBuffer sceneData;
-    private final BufferedObject<PlortBuffer> shadowViewBuffers;
+    private final PlortBuffer shadowViewBuffer;
 
     private final PhysicsContext physicsContext;
 
@@ -58,7 +58,7 @@ public class World implements AutoCloseable {
 
         this.physicsContext = physicsContext;
 
-        this.shadowViewBuffers = new BufferedObject<>(PlortBuffer.class, renderContext.swapchain().imageCount(), _ -> new PlortBuffer(PlayerController.VIEW_SIZE, BufferUsage.UNIFORM_BUFFER_BIT, allocator));
+        this.shadowViewBuffer = new PlortBuffer(PlayerController.VIEW_SIZE, BufferUsage.UNIFORM_BUFFER_BIT, allocator);
         this.sceneData = new PlortBuffer(SCENE_SIZE, BufferUsage.STORAGE_BUFFER_BIT, allocator);
 
         Vector3f up = new Vector3f(0, 1, 0);
@@ -75,7 +75,7 @@ public class World implements AutoCloseable {
         );
 
         recalculateViewProjection();
-        for (int i = 0; i < renderContext.swapchain().imageCount(); i++) uploadSceneData(i);
+        for (int i = 0; i < renderContext.swapchain().imageCount(); i++) uploadSceneData();
 
         this.aabbBuffer = new BufferedObject<>(PlortBuffer.class, renderContext.swapchain().imageCount(), _ -> null);
     }
@@ -97,10 +97,10 @@ public class World implements AutoCloseable {
         ));
     }
 
-    public void uploadSceneData(int frameMod) {
+    public void uploadSceneData() {
         Matrix4f viewProj = new Matrix4f(shadowProjection).multiply(shadowView);
 
-        try (MappedMemory mem = shadowViewBuffers.get(frameMod).map()) {
+        try (MappedMemory mem = shadowViewBuffer.map()) {
             mem.putMatrix4f(viewProj);
             mem.putMatrix4f(shadowView);
             mem.putMatrix4f(shadowProjection);
@@ -119,7 +119,7 @@ public class World implements AutoCloseable {
             mem.putVector3f(fogColor); // fog color
             mem.putFloat(fogDensity); // fog density
 
-            mem.putLong(shadowViewBuffers.get(frameMod).deviceAddress()); // shadow view projection matrix
+            mem.putLong(shadowViewBuffer.deviceAddress()); // shadow view projection matrix
         }
     }
 
@@ -165,8 +165,8 @@ public class World implements AutoCloseable {
         return sceneData;
     }
 
-    public @NotNull PlortBuffer shadowViewBuffer(int frameMod) {
-        return shadowViewBuffers.get(frameMod);
+    public @NotNull PlortBuffer shadowViewBuffer() {
+        return shadowViewBuffer;
     }
 
     public List<Entity> entities() {
@@ -188,11 +188,11 @@ public class World implements AutoCloseable {
         sceneDataDirty = true;
     }
 
-    public void upload(int frameMod) {
+    public void upload() {
         if (sceneDataDirty) {
             sceneDataDirty = false;
             recalculateViewProjection();
-            uploadSceneData(frameMod);
+            uploadSceneData();
         }
     }
 
@@ -200,8 +200,8 @@ public class World implements AutoCloseable {
     public void close() {
         try {
             aabbBuffer.close();
-            shadowViewBuffers.close();
         } catch (Exception _) {}
+        shadowViewBuffer.close();
         sceneData.close();
         entities.forEach(Entity::close);
     }

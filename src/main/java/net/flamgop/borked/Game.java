@@ -76,7 +76,7 @@ public class Game {
             float fdt = (float) deltaTime;
             playerController.update(world, physics, fdt);
             world.update(fdt);
-            world.upload(renderer.currentFrameModInFlight());
+            world.upload();
             world.recreateAABBBuffer(renderer.currentFrameModInFlight());
         }
         cleanup();
