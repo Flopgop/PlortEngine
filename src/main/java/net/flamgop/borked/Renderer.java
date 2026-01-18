@@ -47,9 +47,9 @@ public class Renderer implements AutoCloseable {
     private final PlortPipelineLayout postPipelineLayout;
     private final PlortPipeline postPipeline;
     private final PlortSampler postSampler;
+    private final PlortBuffer postDrawDataBuffer;
 
     private final PlortImage[] mainColorTextures;
-    private final PlortImage[] mainDepthBuffers;
     private final PlortRenderPass mainRenderPass;
 
     private final GBuffer gbuffer;
@@ -149,16 +149,20 @@ public class Renderer implements AutoCloseable {
                 .descriptorSetLayouts(postLayout)
                 .build();
         this.postPipeline = PlortPipeline.builder(context.device(), postRenderPass)
-                .shaderStage(new PlortShaderStage(PlortShaderStage.Stage.MESH, postModule, "meshMain"))
-                .shaderStage(new PlortShaderStage(PlortShaderStage.Stage.FRAGMENT, postModule, "fragmentMain"))
+                .shaderStage(new PlortShaderStage(PlortShaderStage.Stage.MESH, postModule, "mesh_main"))
+                .shaderStage(new PlortShaderStage(PlortShaderStage.Stage.FRAGMENT, postModule, "fragment_main"))
                 .layout(postPipelineLayout)
                 .blendState(PlortBlendState.disabled())
                 .buildGraphics();
 
         this.postSampler = new PlortSampler(context.device(), PlortFilter.NEAREST, PlortFilter.NEAREST, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE);
 
+        this.postDrawDataBuffer = new PlortBuffer(Long.BYTES, BufferUsage.UNIFORM_BUFFER_BIT, context.allocator());
+        try (MappedMemory mem = postDrawDataBuffer.map()) {
+            mem.putLong(playerController.viewBuffer().deviceAddress());
+        }
+
         mainColorTextures = new PlortImage[context.swapchain().imageCount()];
-        mainDepthBuffers = new PlortImage[context.swapchain().imageCount()];
         mainRenderPass = new PlortRenderPass(context.device(),
                 context.swapchain().imageCount(),
                 List.of(
@@ -177,29 +181,12 @@ public class Renderer implements AutoCloseable {
                                     );
                                     return mainColorTextures[f].view();
                                 }
-                        ),
-                        new PlortAttachment(
-                                ImageFormat.D32_SFLOAT, VK_SAMPLE_COUNT_1_BIT,
-                                AttachmentLoadOp.CLEAR, AttachmentStoreOp.DONT_CARE,
-                                AttachmentLoadOp.DONT_CARE, AttachmentStoreOp.DONT_CARE,
-                                PlortImage.Layout.UNDEFINED, PlortImage.Layout.DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-                                (w, h, f) -> {
-                                    if (mainDepthBuffers[f] != null) mainDepthBuffers[f].close();
-                                    mainDepthBuffers[f] = new PlortImage(
-                                            context.device(), context.allocator(),
-                                            PlortImage.Type.TYPE_2D, new Vector3i(w, h, 1),
-                                            1, 1, ImageFormat.D32_SFLOAT,
-                                            PlortImage.Layout.UNDEFINED, ImageUsage.DEPTH_STENCIL_ATTACHMENT_BIT | ImageUsage.SAMPLED_BIT,
-                                            VK_SAMPLE_COUNT_1_BIT, SharingMode.EXCLUSIVE, MemoryUsage.GPU_ONLY, PlortImage.ViewType.TYPE_2D, AspectMask.DEPTH_BIT
-                                    );
-                                    return mainDepthBuffers[f].view();
-                                }
                         )
                 ),
                 List.of(
                         new PlortAttachmentReference(0, PlortImage.Layout.COLOR_ATTACHMENT_OPTIMAL)
                 ),
-                new PlortAttachmentReference(1, PlortImage.Layout.DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+                null
         );
         mainRenderPass.recreate(context.swapchain().extent().x(), context.swapchain().extent().y());
         mainRenderPass.label("Main");
@@ -638,7 +625,7 @@ public class Renderer implements AutoCloseable {
                                 VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
                                 PlortImage.Layout.DEPTH_STENCIL_ATTACHMENT_OPTIMAL, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL,
                                 VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-                                mainDepthBuffers[imageIndex], mainDepthBuffers[imageIndex].entireResourceRange()
+                                gbuffer.depth(imageIndex), gbuffer.depth(imageIndex).entireResourceRange()
                         )
                 };
 
@@ -646,9 +633,9 @@ public class Renderer implements AutoCloseable {
                 cmdBuffer.pipelineBarrier(stack, PipelineStage.LATE_FRAGMENT_TESTS_BIT, PipelineStage.FRAGMENT_SHADER_BIT | PipelineStage.COMPUTE_SHADER_BIT, 0, null, null, depth);
 
                 context.device().writeDescriptorSets(List.of(
-                        new BufferDescriptorWrite(List.of(playerController.viewBuffer()), PlortDescriptor.Type.UNIFORM_BUFFER, 0, postDescriptors.descriptorSet(currentFrameModInFlight, 0)),
+                        new BufferDescriptorWrite(List.of(postDrawDataBuffer), PlortDescriptor.Type.UNIFORM_BUFFER, 0, postDescriptors.descriptorSet(currentFrameModInFlight, 0)),
                         new TextureDescriptorWrite(new PlortTexture[]{new PlortTexture(mainColorTextures[imageIndex], postSampler)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 1, postDescriptors.descriptorSet(currentFrameModInFlight, 0)),
-                        new TextureDescriptorWrite(new PlortTexture[]{new PlortTexture(mainDepthBuffers[imageIndex], postSampler)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 2, postDescriptors.descriptorSet(currentFrameModInFlight, 0))
+                        new TextureDescriptorWrite(new PlortTexture[]{new PlortTexture(gbuffer.depth(imageIndex), postSampler)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 2, postDescriptors.descriptorSet(currentFrameModInFlight, 0))
                 ));
 
                 postRenderPass.begin(cmdBuffer, clearValues, imageIndex);
@@ -680,7 +667,7 @@ public class Renderer implements AutoCloseable {
                                 VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
                                 PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, PlortImage.Layout.DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
                                 VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-                                mainDepthBuffers[imageIndex], mainDepthBuffers[imageIndex].entireResourceRange()
+                                gbuffer.depth(imageIndex), gbuffer.depth(imageIndex).entireResourceRange()
                         );
 
                 cmdBuffer.pipelineBarrier(stack, PipelineStage.FRAGMENT_SHADER_BIT, PipelineStage.COLOR_ATTACHMENT_OUTPUT_BIT, 0, null, null, color);
@@ -750,9 +737,9 @@ public class Renderer implements AutoCloseable {
         textRenderer.close();
 
         mainRenderPass.close();
-        for (PlortImage depthImage : mainDepthBuffers) if (depthImage != null) depthImage.close();
         for (PlortImage colorImage : mainColorTextures) if (colorImage != null) colorImage.close();
 
+        postDrawDataBuffer.close();
         postSampler.close();
         postPipeline.close();
         postPipelineLayout.close();

@@ -4,7 +4,7 @@ import com.github.stephengold.joltjni.readonly.ConstAaBox;
 import net.flamgop.borked.camera.PlayerController;
 import net.flamgop.borked.math.Matrix4f;
 import net.flamgop.borked.math.Vector3f;
-import net.flamgop.borked.physics.next.PhysicsContext;
+import net.flamgop.borked.physics.PhysicsContext;
 import net.flamgop.borked.renderer.PlortRenderContext;
 import net.flamgop.borked.renderer.memory.*;
 import org.jetbrains.annotations.NotNull;

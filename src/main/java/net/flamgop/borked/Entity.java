@@ -8,7 +8,7 @@ import com.github.stephengold.joltjni.readonly.QuatArg;
 import net.flamgop.borked.math.Matrix4f;
 import net.flamgop.borked.math.Quaternionf;
 import net.flamgop.borked.math.Vector3f;
-import net.flamgop.borked.physics.next.PhysicsContext;
+import net.flamgop.borked.physics.PhysicsContext;
 import net.flamgop.borked.renderer.PlortCommandBuffer;
 import net.flamgop.borked.renderer.memory.BufferUsage;
 import net.flamgop.borked.renderer.memory.MappedMemory;
@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
+@SuppressWarnings("resource")
 public class Entity implements AutoCloseable {
     private static final int INSTANCE_BUFFER_SIZE = 2 * Matrix4f.BYTES; // model, inverse_model
 

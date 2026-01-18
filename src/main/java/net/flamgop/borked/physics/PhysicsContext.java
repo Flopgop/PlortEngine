@@ -1,4 +1,4 @@
-package net.flamgop.borked.physics.next;
+package net.flamgop.borked.physics;
 
 import com.github.stephengold.joltjni.*;
 import com.github.stephengold.joltjni.enumerate.EActivation;

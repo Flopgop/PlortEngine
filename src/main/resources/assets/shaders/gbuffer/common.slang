@@ -1,5 +1,8 @@
 implementing gbuffer;
 
+static const float PI = 3.14159265359;
+static const float TAU = 2.0 * PI;
+
 struct ViewData {
     float4x4 view_projection;
     float4x4 view;

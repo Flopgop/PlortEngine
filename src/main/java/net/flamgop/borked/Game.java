@@ -2,7 +2,7 @@ package net.flamgop.borked;
 
 import net.flamgop.borked.camera.PlayerController;
 import net.flamgop.borked.math.Vector3f;
-import net.flamgop.borked.physics.next.PhysicsContext;
+import net.flamgop.borked.physics.PhysicsContext;
 import net.flamgop.borked.renderer.PlortRenderContext;
 import net.flamgop.borked.model.PlortModel;
 import net.flamgop.borked.renderer.util.VkUtil;
@@ -25,6 +25,9 @@ public class Game {
     private final PlortModel scene;
 
     public Game() {
+//        RenderDoc r = RenderDoc.load(RenderDoc.KnownVersion.API_1_6_0);
+//        r.unloadCrashHandler();
+
         LOGGER.debug("This is a debug string");
         LOGGER.info("This is an info string");
         LOGGER.warn("This is a warning string");

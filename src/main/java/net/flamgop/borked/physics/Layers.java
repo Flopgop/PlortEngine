@@ -1,4 +1,4 @@
-package net.flamgop.borked.physics.next;
+package net.flamgop.borked.physics;
 
 public class Layers {
     public static final int MOVING = 0;
