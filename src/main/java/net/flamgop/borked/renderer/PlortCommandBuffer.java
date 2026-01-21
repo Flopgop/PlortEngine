@@ -24,6 +24,7 @@ import java.util.Arrays;
 
 import static org.lwjgl.vulkan.EXTMeshShader.*;
 import static org.lwjgl.vulkan.VK10.*;
+import static org.lwjgl.vulkan.VK14.vkCmdPushDescriptorSet;
 
 public class PlortCommandBuffer implements AutoCloseable {
     private final VkCommandBuffer handle;
@@ -81,6 +82,11 @@ public class PlortCommandBuffer implements AutoCloseable {
     public void pushConstants(PlortPipelineLayout layout, int stageFlags, int offset, ByteBuffer values) { // note: while lwjgl VK10 implements other buffers for this method, most push constants are complex enough to need to be made of multiple values and thus should be ByteBuffers. All other buffers can be reinterpreted as ByteBuffers.
         checkBegun();
         vkCmdPushConstants(handle, layout.handle(), stageFlags, offset, values);
+    }
+
+    public void pushDescriptorSet(PipelineBindPoint bindPoint, PlortPipelineLayout layout, int set, VkWriteDescriptorSet.Buffer writes) {
+        checkBegun();
+        vkCmdPushDescriptorSet(handle, bindPoint.qualifier(), layout.handle(), set, writes);
     }
 
     public void setViewport(int firstViewport, VkViewport.Buffer pViewports) {

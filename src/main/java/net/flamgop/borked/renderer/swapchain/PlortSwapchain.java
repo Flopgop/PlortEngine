@@ -153,7 +153,7 @@ public class PlortSwapchain extends TrackedCloseable {
                     .imageSharingMode(device.identicalQueues() ? VK_SHARING_MODE_EXCLUSIVE : VK_SHARING_MODE_CONCURRENT)
                     .preTransform(capabilities.currentTransform())
                     .compositeAlpha(VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR)
-                    .presentMode(VK_PRESENT_MODE_FIFO_KHR)
+                    .presentMode(VK_PRESENT_MODE_IMMEDIATE_KHR)
                     .clipped(true)
                     .oldSwapchain(oldSwapchain);
 

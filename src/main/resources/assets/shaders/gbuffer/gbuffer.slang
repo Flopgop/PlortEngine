@@ -80,7 +80,7 @@ ConstantBuffer<MetaData> meta_data;
 ConstantBuffer<SceneData*> scene_data;
 
 [[vk::binding(11, 0)]]
-ConstantBuffer<ShadowData*> player_shadow_data;
+ConstantBuffer<ShadowInfo> shadow_info;
 
 [shader("fragment")]
 float4 fragmentMain(AssembledVertex vertex) : SV_Target0 {
@@ -97,10 +97,11 @@ float4 fragmentMain(AssembledVertex vertex) : SV_Target0 {
         world_pos = mul(view_data.inverse_view, float4(position.xyz, 1.0)).xyz;
     }
 
-    float4 godrays = sun_light_shafts(view_data, scene_data, shadow, player_shadow, player_shadow_data, uv, world_pos);
+    float4 godrays = sun_light_shafts(view_data, scene_data, shadow, player_shadow, shadow_info, uv, world_pos);
 
     if (position.a <= 0.1) {
-        return float4(godrays.rgb, 1.0);
+        float3 sky = scene_data.ambient_color + godrays.rgb;
+        return float4(sky, 1.0);
     }
 
     float3 normal = normalize(g_normal.Sample(uv).xyz);
@@ -108,9 +109,9 @@ float4 fragmentMain(AssembledVertex vertex) : SV_Target0 {
 
     float2 noise_uv = (uv * meta_data.screen_size) / 512.0;
     noise_uv *= 10.0;
-    float shadow = compute_shadow_soft(noise_texture, shadow, player_shadow, scene_data->shadow, player_shadow_data, world_pos, noise_uv);
+    float shadow = compute_shadow_soft(noise_texture, shadow, player_shadow, shadow_info.scene_shadows, shadow_info.player_shadows, world_pos, noise_uv);
 
-    float3 lit = shadow * compute_lighting(scene_data, view_data, position.xyz, normal, albedo, ssao.Sample(uv).r);
+    float3 lit = compute_lighting(scene_data, view_data, position.xyz, normal, albedo, ssao.Sample(uv).r, shadow);
 
     // float3 reflections = compute_ssr(position.xyz, normal, uv);
     // lit += reflections * pow(1.0 - max(dot(normal, normalize(position.xyz)), 0.0), 5.0);

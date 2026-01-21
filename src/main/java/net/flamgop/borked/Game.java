@@ -18,6 +18,7 @@ public class Game {
     private final PlortRenderContext renderContext;
     private final PlayerController playerController;
     private final World world;
+    private final ShadowManager shadowManager;
     private final Renderer renderer;
     private final PhysicsContext physics;
 
@@ -25,9 +26,6 @@ public class Game {
     private final PlortModel scene;
 
     public Game() {
-//        RenderDoc r = RenderDoc.load(RenderDoc.KnownVersion.API_1_6_0);
-//        r.unloadCrashHandler();
-
         LOGGER.debug("This is a debug string");
         LOGGER.info("This is an info string");
         LOGGER.warn("This is a warning string");
@@ -38,13 +36,15 @@ public class Game {
 
         this.playerController = new PlayerController(physics, renderContext, renderContext.window(), 90, 0.1f);
         this.world = new World(physics, renderContext, playerController);
+        this.shadowManager = new ShadowManager(renderContext, world, playerController);
+        world.shadowManager(shadowManager);
 
         cube = new PlortModel(renderContext, "cube.glb");
 
-        this.renderer = new Renderer(renderContext, playerController, world);
+        this.renderer = new Renderer(renderContext, playerController, world, shadowManager);
 
         scene = new PlortModel(renderContext, "test_scene.glb");
-        world.addEntity(new Entity(physics, scene, renderContext.allocator()));
+        world.addEntity(new Entity(renderContext, physics, scene, renderContext.allocator()));
         for (int i = 0; i < renderContext.swapchain().imageCount(); i++) {
             world.recreateAABBBuffer(i);
         }
@@ -60,7 +60,20 @@ public class Game {
             renderContext.window().input().update();
             renderContext.window().pollEvents();
 
-            if (!renderer.frame(deltaTime)) continue;
+            int imageIndex = renderer.startFrame();
+            if (imageIndex == -1) continue;
+
+            float fdt = (float) deltaTime;
+            playerController.update(world, physics, fdt);
+            world.update(fdt);
+            world.recreateAABBBuffer(imageIndex);
+            shadowManager.update(fdt);
+
+            playerController.upload(imageIndex);
+            world.upload();
+            shadowManager.upload(imageIndex);
+
+            if (!renderer.frame(imageIndex, deltaTime)) continue;
 
             long frameEnd = System.nanoTime();
             deltaTime = (frameEnd - prevFrameStart) / 1e+9;
@@ -71,16 +84,10 @@ public class Game {
             }
 
             if (renderContext.window().input().keyPressed(GLFW.GLFW_KEY_Q)) {
-                Entity e = new Entity(physics, cube, renderContext.allocator());
-                e.setPosition(new Vector3f(playerController.position().add(0, 5, 0)));
+                Entity e = new Entity(renderContext, physics, cube, renderContext.allocator());
+                e.setPosition(new Vector3f(playerController.playerPosition().add(0, 5, 0)));
                 world.addEntity(e);
             }
-
-            float fdt = (float) deltaTime;
-            playerController.update(world, physics, fdt);
-            world.update(fdt);
-            world.upload();
-            world.recreateAABBBuffer(renderer.currentFrameModInFlight());
         }
         cleanup();
     }
@@ -88,6 +95,7 @@ public class Game {
     public void cleanup() {
         renderer.waitIdle();
 
+        shadowManager.close();
         world.close();
         playerController.close();
         cube.close();

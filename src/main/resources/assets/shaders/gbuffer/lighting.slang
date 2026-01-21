@@ -2,7 +2,7 @@ implementing gbuffer;
 
 __include common;
 
-float3 compute_lighting(SceneData* scene_data, ViewData view_data, float3 position, float3 normal, float3 albedo, float ao) {
+float3 compute_lighting(SceneData* scene_data, ViewData view_data, float3 position, float3 normal, float3 albedo, float ao, float shadow) {
     float3 light_dir = normalize(mul(float3x3(view_data.view), -scene_data->sun_dir));
     float3 light_color = scene_data->sun_color * scene_data->sun_intensity;
 
@@ -17,5 +17,5 @@ float3 compute_lighting(SceneData* scene_data, ViewData view_data, float3 positi
     float spec = pow(max(dot(normal, half_dir), 0.0), 32.0);
     float3 specular = spec * light_color;
 
-    return ambient + diffuse + specular;
+    return ambient + shadow * (diffuse + specular);
 }

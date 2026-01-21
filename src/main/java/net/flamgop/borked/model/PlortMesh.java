@@ -40,7 +40,7 @@ public class PlortMesh extends TrackedCloseable {
     private final PlortBuffer vertexBuffer, meshBuffer, boundsBuffer;
     private final int meshletCount;
 
-    public PlortMesh(PlortAllocator allocator, AIMesh mesh, boolean hasCollision, Matrix4f transform) {
+    public PlortMesh(PlortAllocator allocator, AIMesh mesh, Matrix4f transform) {
         super();
         Matrix4f normalMatrix = new Matrix4f(transform).invert().transpose();
 
@@ -220,7 +220,7 @@ public class PlortMesh extends TrackedCloseable {
             newMax = newMax.max(t);
         }
 
-        this.aabb = new AABB(newMin, newMax, hasCollision);
+        this.aabb = new AABB(newMin, newMax);
 
         meshlets.close();
         MemoryUtil.memFree(meshletTriangles);

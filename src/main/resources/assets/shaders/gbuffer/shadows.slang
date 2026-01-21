@@ -127,7 +127,7 @@ float2 sample_shadow_map(float3 world_pos, Sampler2D map, float4x4 view_proj) {
     return float2(depth, map.Sample(uv).r);
 }
 
-float compute_shadow(Sampler2D scene_shadows, Sampler2D player_shadows, ShadowData *scene_shadow_data, ShadowData *player_shadow_data, float3 world_pos) {
+float compute_shadow(Sampler2D scene_shadows, Sampler2D player_shadows, ViewData *scene_shadow_data, ViewData *player_shadow_data, float3 world_pos) {
     float2 scene_depth = sample_shadow_map(world_pos, scene_shadows, scene_shadow_data->view_projection);
     float2 player_depth = sample_shadow_map(world_pos, player_shadows, player_shadow_data->view_projection);
 
@@ -137,14 +137,14 @@ float compute_shadow(Sampler2D scene_shadows, Sampler2D player_shadows, ShadowDa
     return min(player_shadow_factor, scene_shadow_factor);
 }
 
-float compute_shadow_soft_simple(Sampler2D noise, Sampler2D scene_shadows, Sampler2D player_shadows, ShadowData *scene_shadow_data, ShadowData *player_shadow_data, float3 world_pos, float2 noise_uv) {
+float compute_shadow_soft_simple(Sampler2D noise, Sampler2D scene_shadows, Sampler2D player_shadows, ViewData *scene_shadow_data, ViewData *player_shadow_data, float3 world_pos, float2 noise_uv) {
     float scene_vis = compute_pcf(noise, scene_shadows, scene_shadow_data->view_projection, world_pos, noise_uv);
     float player_vis = compute_pcf(noise, player_shadows, player_shadow_data->view_projection, world_pos, noise_uv);
 
     return min(scene_vis, player_vis);
 }
 
-float compute_shadow_soft(Sampler2D noise, Sampler2D scene_shadows, Sampler2D player_shadows, ShadowData *scene_shadow_data, ShadowData *player_shadow_data, float3 world_pos, float2 noise_uv) {
+float compute_shadow_soft(Sampler2D noise, Sampler2D scene_shadows, Sampler2D player_shadows, ViewData *scene_shadow_data, ViewData *player_shadow_data, float3 world_pos, float2 noise_uv) {
     float scene_vis = compute_pcss(noise, scene_shadows, scene_shadow_data->view_projection, world_pos, noise_uv);
     float player_vis = compute_pcss(noise, player_shadows, player_shadow_data->view_projection, world_pos, noise_uv);
 

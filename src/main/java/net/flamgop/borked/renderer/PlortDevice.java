@@ -221,39 +221,43 @@ public class PlortDevice extends TrackedCloseable {
     }
 
     @SuppressWarnings("resource")
-    public void writeDescriptorSets(List<DescriptorWrite> writes) {
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            VkWriteDescriptorSet.Buffer buffer = VkWriteDescriptorSet.calloc(writes.size(), stack);
+    public VkWriteDescriptorSet.Buffer generateDescriptorWrites(MemoryStack stack, List<DescriptorWrite> writes) {
+        VkWriteDescriptorSet.Buffer buffer = VkWriteDescriptorSet.calloc(writes.size(), stack);
 
-            int writeIndex = 0;
-            for (DescriptorWrite write : writes) {
-                buffer.get(writeIndex++)
-                        .sType$Default()
-                        .descriptorCount(write.count())
-                        .descriptorType(write.type().qualifier())
-                        .dstBinding(write.dstBinding())
-                        .dstSet(write.dstSet());
-                switch (write) {
-                    case BufferDescriptorWrite b -> {
-                        VkDescriptorBufferInfo.Buffer bufferInfos = VkDescriptorBufferInfo.calloc(b.count(), stack);
-                        for (int i = 0; i < b.count(); i++) {
-                            b.buffers().get(i).info(bufferInfos.get(i));
-                            buffer.get(writeIndex - 1).pBufferInfo(bufferInfos);
-                        }
-                    }
-                    case TextureDescriptorWrite t -> {
-                        VkDescriptorImageInfo.Buffer imageInfos = VkDescriptorImageInfo.calloc(t.count(), stack);
-                        for (int i = 0; i < t.count(); i++) {
-                            if (i < t.samplers().size()) t.samplers().get(i).info(imageInfos.get(i));
-                            if (i < t.images().size()) t.images().get(i).info(imageInfos.get(i));
-
-                            imageInfos.get(i).imageLayout(t.layout().qualifier());
-                        }
-                        buffer.get(writeIndex - 1).pImageInfo(imageInfos);
+        int writeIndex = 0;
+        for (DescriptorWrite write : writes) {
+            buffer.get(writeIndex++)
+                    .sType$Default()
+                    .descriptorCount(write.count())
+                    .descriptorType(write.type().qualifier())
+                    .dstBinding(write.dstBinding())
+                    .dstSet(write.dstSet());
+            switch (write) {
+                case BufferDescriptorWrite b -> {
+                    VkDescriptorBufferInfo.Buffer bufferInfos = VkDescriptorBufferInfo.calloc(b.count(), stack);
+                    for (int i = 0; i < b.count(); i++) {
+                        b.buffers().get(i).info(bufferInfos.get(i));
+                        buffer.get(writeIndex - 1).pBufferInfo(bufferInfos);
                     }
                 }
+                case TextureDescriptorWrite t -> {
+                    VkDescriptorImageInfo.Buffer imageInfos = VkDescriptorImageInfo.calloc(t.count(), stack);
+                    for (int i = 0; i < t.count(); i++) {
+                        if (i < t.samplers().size()) t.samplers().get(i).info(imageInfos.get(i));
+                        if (i < t.images().size()) t.images().get(i).info(imageInfos.get(i));
+
+                        imageInfos.get(i).imageLayout(t.layout().qualifier());
+                    }
+                    buffer.get(writeIndex - 1).pImageInfo(imageInfos);
+                }
             }
-            vkUpdateDescriptorSets(this.handle, buffer, null);
+        }
+        return buffer;
+    }
+
+    public void writeDescriptorSets(List<DescriptorWrite> writes) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            vkUpdateDescriptorSets(this.handle, generateDescriptorWrites(stack, writes), null);
         }
     }
 

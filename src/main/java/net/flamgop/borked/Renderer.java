@@ -1,6 +1,7 @@
 package net.flamgop.borked;
 
 import net.flamgop.borked.camera.PlayerController;
+import net.flamgop.borked.math.Frustum;
 import net.flamgop.borked.math.Matrix4f;
 import net.flamgop.borked.math.Vector2f;
 import net.flamgop.borked.math.Vector3i;
@@ -27,6 +28,7 @@ import org.lwjgl.vulkan.VkViewport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.foreign.Arena;
 import java.nio.ByteBuffer;
 import java.util.List;
 
@@ -67,7 +69,10 @@ public class Renderer implements AutoCloseable {
 
     private final PlortTexture noiseTexture;
 
-    private PlortTexture ssaoTexture;
+    // aeuhguehghueghauhgehuehguhaughe
+//    private PlortTexture ssaoTexture;
+    private final PlortImage[] ssaoTargetImages;
+    private final PlortSampler ssaoSampler;
     private final PlortShaderModule ssaoModule;
     private final PlortDescriptorSetLayout ssaoLayout;
     private final PlortBufferedDescriptorSetPool ssaoDescriptors;
@@ -89,22 +94,27 @@ public class Renderer implements AutoCloseable {
     private final PlortPipelineLayout shadowPipelineLayout;
     private final PlortPipeline shadowPipeline;
 
+    // these don't change often or ever, so we don't need to create multiple buffers here
     private final PlortBuffer metaBuffer;
     private final PlortBuffer sceneBuffer;
-    private final PlortBuffer playerShadowBuffer;
     private final PlortBuffer identityTransformBuffer;
 
+    private final BufferedObject<PlortBuffer> shadowInfoBuffers;
+
     // stuff we don't manage but render
+    private final ShadowManager shadowManager;
     private final PlayerController playerController;
     private final World world;
 
+    private int currentImageIndex = 0;
     private int currentFrameModInFlight = 0;
 
     // note: while we would create the context, camera controller has buffers in it so we can't.
-    public Renderer(PlortRenderContext context, PlayerController playerController, World world) {
+    public Renderer(PlortRenderContext context, PlayerController playerController, World world, ShadowManager shadowManager) {
         this.playerController = playerController;
         this.world = world;
         this.context = context;
+        this.shadowManager = shadowManager;
 
         context.onSwapchainInvalidate(this::onSwapchainInvalidate);
         context.swapchain().label("Main");
@@ -157,10 +167,7 @@ public class Renderer implements AutoCloseable {
 
         this.postSampler = new PlortSampler(context.device(), PlortFilter.NEAREST, PlortFilter.NEAREST, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE);
 
-        this.postDrawDataBuffer = new PlortBuffer(Long.BYTES, BufferUsage.UNIFORM_BUFFER_BIT, context.allocator());
-        try (MappedMemory mem = postDrawDataBuffer.map()) {
-            mem.putLong(playerController.viewBuffer().deviceAddress());
-        }
+        this.postDrawDataBuffer = new PlortBuffer(2 * Long.BYTES, BufferUsage.UNIFORM_BUFFER_BIT, context.allocator());
 
         mainColorTextures = new PlortImage[context.swapchain().imageCount()];
         mainRenderPass = new PlortRenderPass(context.device(),
@@ -239,10 +246,7 @@ public class Renderer implements AutoCloseable {
         try (MappedMemory mem = sceneBuffer.map()) {
             mem.putLong(world.sceneBuffer().deviceAddress());
         }
-        playerShadowBuffer = new PlortBuffer(Long.BYTES, BufferUsage.UNIFORM_BUFFER_BIT, context.allocator());
-        try (MappedMemory mem = playerShadowBuffer.map()) {
-            mem.putLong(playerController.shadowBuffer().deviceAddress());
-        }
+        shadowInfoBuffers = new BufferedObject<>(PlortBuffer.class, context.swapchain().imageCount(), _ -> new PlortBuffer(2 * Long.BYTES, BufferUsage.UNIFORM_BUFFER_BIT, context.allocator()));
         metaBuffer = new PlortBuffer(2 * Integer.BYTES, BufferUsage.UNIFORM_BUFFER_BIT, context.allocator());
         try (MappedMemory mem = metaBuffer.map()) {
             mem.putInt(context.swapchain().extent().x());
@@ -279,16 +283,17 @@ public class Renderer implements AutoCloseable {
                 .layout(ssaoPipelineLayout)
                 .buildCompute();
 
-        this.ssaoTexture = new PlortTexture(
-                new PlortImage(
-                        context.device(), context.allocator(),
-                        PlortImage.Type.TYPE_2D, new Vector3i(context.swapchain().extent().x(), context.swapchain().extent().y(), 1),
-                        1, 1, ImageFormat.R8_UNORM,
-                        PlortImage.Layout.UNDEFINED, ImageUsage.STORAGE_BIT | ImageUsage.SAMPLED_BIT, 1,
-                        SharingMode.EXCLUSIVE, MemoryUsage.GPU_ONLY, PlortImage.ViewType.TYPE_2D, AspectMask.COLOR_BIT
-                ),
-                new PlortSampler(context.device(), PlortFilter.NEAREST, PlortFilter.NEAREST, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE)
-        );
+        this.ssaoSampler = new PlortSampler(context.device(), PlortFilter.NEAREST, PlortFilter.NEAREST, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE);
+        this.ssaoTargetImages = new PlortImage[context.swapchain().imageCount()];
+        for (int i = 0; i < context.swapchain().imageCount(); i++) {
+            ssaoTargetImages[i] = new PlortImage(
+                    context.device(), context.allocator(),
+                    PlortImage.Type.TYPE_2D, new Vector3i(context.swapchain().extent().x(), context.swapchain().extent().y(), 1),
+                    1, 1, ImageFormat.R8_UNORM,
+                    PlortImage.Layout.UNDEFINED, ImageUsage.STORAGE_BIT | ImageUsage.SAMPLED_BIT, 1,
+                    SharingMode.EXCLUSIVE, MemoryUsage.GPU_ONLY, PlortImage.ViewType.TYPE_2D, AspectMask.COLOR_BIT
+            );
+        }
 
         ByteBuffer aabbCode = ResourceHelper.loadFromResource("assets/shaders/aabb.spv");
         this.aabbModule = new PlortShaderModule(context.device(), aabbCode);
@@ -394,6 +399,51 @@ public class Renderer implements AutoCloseable {
                 .layout(shadowPipelineLayout)
                 .depthStencilStateInfo(new PlortDepthStencilState(true, true, CompareOp.LESS, false, false, new PlortDepthStencilState.StencilOpState(), new PlortDepthStencilState.StencilOpState(), 0f, 1f))
                 .buildGraphics();
+
+        for (int i = 0; i < context.swapchain().imageCount(); i++) {
+            updateFrameDescriptors(i);
+        }
+    }
+
+    private void updateFrameDescriptors(int frame) {
+        try (MappedMemory mem = shadowInfoBuffers.get(frame).map()) {
+            mem.putLong(shadowManager.playerShadowViewBuffer(frame).deviceAddress());
+            mem.putLong(shadowManager.sceneShadowViewBuffer(frame).deviceAddress());
+        }
+        playerController.setupViewBuffers(frame, shadowManager.playerShadowViewBuffer(frame));
+        context.device().writeDescriptorSets(List.of(
+                new BufferDescriptorWrite(List.of(playerController.viewBuffer(frame)), PlortDescriptor.Type.UNIFORM_BUFFER, 0, aabbDescriptors.descriptorSet(frame, 0))
+        ));
+        context.device().writeDescriptorSets(List.of(
+                new TextureDescriptorWrite(new PlortTexture[]{gbuffer.positionTexture(frame)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 0, gbuffer.descriptors().descriptorSet(frame, 0)),
+                new TextureDescriptorWrite(new PlortTexture[]{gbuffer.normalTexture(frame)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 1, gbuffer.descriptors().descriptorSet(frame, 0)),
+                new TextureDescriptorWrite(new PlortTexture[]{gbuffer.albedoTexture(frame)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 2, gbuffer.descriptors().descriptorSet(frame, 0)),
+                new TextureDescriptorWrite(new PlortTexture[]{gbuffer.depthTexture(frame)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 3, gbuffer.descriptors().descriptorSet(frame, 0)),
+                new TextureDescriptorWrite(new PlortTexture[]{new PlortTexture(sceneShadowMaps[frame], shadowSampler)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 6, gbuffer.descriptors().descriptorSet(frame, 0)),
+                new TextureDescriptorWrite(new PlortTexture[]{new PlortTexture(playerShadowMaps[frame], shadowSampler)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 7, gbuffer.descriptors().descriptorSet(frame, 0)),
+
+                new TextureDescriptorWrite(new PlortTexture[]{noiseTexture}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 4, gbuffer.descriptors().descriptorSet(frame, 0)),
+                new TextureDescriptorWrite(new PlortTexture[]{new PlortTexture(ssaoTargetImages[frame], ssaoSampler)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 5, gbuffer.descriptors().descriptorSet(frame, 0)),
+                new BufferDescriptorWrite(List.of(playerController.viewBuffer(frame)), PlortDescriptor.Type.UNIFORM_BUFFER, 8, gbuffer.descriptors().descriptorSet(frame, 0)),
+                new BufferDescriptorWrite(List.of(metaBuffer), PlortDescriptor.Type.UNIFORM_BUFFER, 9, gbuffer.descriptors().descriptorSet(frame, 0)),
+                new BufferDescriptorWrite(List.of(sceneBuffer), PlortDescriptor.Type.UNIFORM_BUFFER, 10, gbuffer.descriptors().descriptorSet(frame, 0)),
+                new BufferDescriptorWrite(List.of(shadowInfoBuffers.get(frame)), PlortDescriptor.Type.UNIFORM_BUFFER, 11, gbuffer.descriptors().descriptorSet(frame, 0))
+        ));
+
+        context.device().writeDescriptorSets(List.of(
+                new TextureDescriptorWrite(new PlortTexture[]{gbuffer.positionTexture(frame)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 0, ssaoDescriptors.descriptorSet(frame, 0)),
+                new TextureDescriptorWrite(new PlortTexture[]{gbuffer.normalTexture(frame)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 1, ssaoDescriptors.descriptorSet(frame, 0)),
+
+                new TextureDescriptorWrite(new PlortTexture[]{noiseTexture}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 2, ssaoDescriptors.descriptorSet(frame, 0)),
+                new BufferDescriptorWrite(List.of(playerController.viewBuffer(frame)), PlortDescriptor.Type.UNIFORM_BUFFER, 3, ssaoDescriptors.descriptorSet(frame, 0)),
+                new TextureDescriptorWrite(new PlortImage[]{ssaoTargetImages[frame]}, PlortImage.Layout.GENERAL, 4, ssaoDescriptors.descriptorSet(frame, 0))
+        ));
+
+        context.device().writeDescriptorSets(List.of(
+                new BufferDescriptorWrite(List.of(postDrawDataBuffer), PlortDescriptor.Type.UNIFORM_BUFFER, 0, postDescriptors.descriptorSet(frame, 0)),
+                new TextureDescriptorWrite(new PlortTexture[]{new PlortTexture(mainColorTextures[frame], postSampler)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 1, postDescriptors.descriptorSet(frame, 0)),
+                new TextureDescriptorWrite(new PlortTexture[]{new PlortTexture(gbuffer.depth(frame), postSampler)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 2, postDescriptors.descriptorSet(frame, 0))
+        ));
     }
 
     public PlortBuffer sceneBuffer() {
@@ -414,77 +464,70 @@ public class Renderer implements AutoCloseable {
 
     private void onSwapchainInvalidate() {
         this.mainRenderPass.recreate(context.swapchain().extent().x(), context.swapchain().extent().y());
+        this.postRenderPass.recreate(context.swapchain().extent().x(), context.swapchain().extent().y());
         this.gbuffer.recreate(context.swapchain().extent().x(), context.swapchain().extent().y());
 
-        this.ssaoTexture.close();
-        this.ssaoTexture = new PlortTexture(
-                new PlortImage(
-                        context.device(), context.allocator(),
-                        PlortImage.Type.TYPE_2D, new Vector3i(context.swapchain().extent().x(), context.swapchain().extent().y(), 1),
-                        1, 1, ImageFormat.R8_UNORM,
-                        PlortImage.Layout.UNDEFINED, ImageUsage.STORAGE_BIT | ImageUsage.SAMPLED_BIT, 1,
-                        SharingMode.EXCLUSIVE, MemoryUsage.GPU_ONLY, PlortImage.ViewType.TYPE_2D, AspectMask.COLOR_BIT
-                ),
-                new PlortSampler(context.device(), PlortFilter.LINEAR, PlortFilter.LINEAR, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE)
-        );
+        for (int i = 0; i < context.swapchain().imageCount(); i++) {
+            ssaoTargetImages[i].close();
+            ssaoTargetImages[i] = new PlortImage(
+                    context.device(), context.allocator(),
+                    PlortImage.Type.TYPE_2D, new Vector3i(context.swapchain().extent().x(), context.swapchain().extent().y(), 1),
+                    1, 1, ImageFormat.R8_UNORM,
+                    PlortImage.Layout.UNDEFINED, ImageUsage.STORAGE_BIT | ImageUsage.SAMPLED_BIT, 1,
+                    SharingMode.EXCLUSIVE, MemoryUsage.GPU_ONLY, PlortImage.ViewType.TYPE_2D, AspectMask.COLOR_BIT
+            );
+        }
         try (MappedMemory mem = metaBuffer.map()) {
             mem.putInt(context.swapchain().extent().x());
             mem.putInt(context.swapchain().extent().y());
         }
         playerController.resize(context.swapchain().extent().x(), context.swapchain().extent().y());
+
+        for (int i = 0; i < context.swapchain().imageCount(); i++) {
+            updateFrameDescriptors(i);
+        }
     }
 
     long timeoutTimestamp = System.nanoTime();
     boolean timeoutLastFrame = false;
 
     private void submitDeferred(PlortCommandBuffer cmdBuffer, int imageIndex) {
-
         meshPipeline.bind(cmdBuffer, PipelineBindPoint.GRAPHICS);
-        playerController.model().setViewBuffer(context, playerController.viewBuffer(), currentFrameModInFlight);
-        playerController.model().submit(cmdBuffer, meshPipelineLayout, playerController.instanceBuffer(), 1, currentFrameModInFlight, false);
-        world.entities.forEach(e -> e.model().setViewBuffer(context, playerController.viewBuffer(), currentFrameModInFlight));
-        world.entities.forEach(e -> e.submit(cmdBuffer, meshPipelineLayout, currentFrameModInFlight, false));
+        playerController.submit(cmdBuffer, shadowPipelineLayout, imageIndex, false);
+
+        try (Arena arena = Arena.ofConfined()) {
+            Frustum playerFrustum = playerController.computeFrustum(arena);
+
+            world.entities.forEach(e -> {
+                if (playerFrustum.intersects(e.transformedAABB(arena))) {
+                    e.submit(cmdBuffer, meshPipelineLayout, imageIndex, false);
+                }
+            });
+        }
     }
 
     private void submitShadow(PlortCommandBuffer cmdBuffer, int imageIndex) {
         shadowPipeline.bind(cmdBuffer, PipelineBindPoint.GRAPHICS);
-        world.entities.forEach(e -> e.model().setShadowViewBuffer(context, world.shadowViewBuffer(), currentFrameModInFlight));
-        world.entities.forEach(e -> e.submit(cmdBuffer, shadowPipelineLayout, currentFrameModInFlight, true));
+        world.entities.forEach(e -> {
+            e.submit(cmdBuffer, shadowPipelineLayout, imageIndex, true);
+        });
     }
 
     private void submitPlayerShadow(PlortCommandBuffer cmdBuffer, int imageIndex) {
         shadowPipeline.bind(cmdBuffer, PipelineBindPoint.GRAPHICS);
-        playerController.model().setShadowViewBuffer(context, playerController.shadowBuffer(), currentFrameModInFlight);
-        playerController.model().submit(cmdBuffer, shadowPipelineLayout, playerController.instanceBuffer(), 1, currentFrameModInFlight, true);
+        playerController.submit(cmdBuffer, shadowPipelineLayout, imageIndex, true);
     }
 
     private void submitShading(PlortCommandBuffer cmdBuffer, double deltaTime, int imageIndex) {
-        context.device().writeDescriptorSets(List.of(
-                new TextureDescriptorWrite(new PlortTexture[]{gbuffer.positionTexture(imageIndex)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 0, gbuffer.descriptors().descriptorSet(currentFrameModInFlight, 0)),
-                new TextureDescriptorWrite(new PlortTexture[]{gbuffer.normalTexture(imageIndex)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 1, gbuffer.descriptors().descriptorSet(currentFrameModInFlight, 0)),
-                new TextureDescriptorWrite(new PlortTexture[]{gbuffer.albedoTexture(imageIndex)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 2, gbuffer.descriptors().descriptorSet(currentFrameModInFlight, 0)),
-                new TextureDescriptorWrite(new PlortTexture[]{gbuffer.depthTexture(imageIndex)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 3, gbuffer.descriptors().descriptorSet(currentFrameModInFlight, 0)),
-                new TextureDescriptorWrite(new PlortTexture[]{noiseTexture}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 4, gbuffer.descriptors().descriptorSet(currentFrameModInFlight, 0)),
-                new TextureDescriptorWrite(new PlortTexture[]{ssaoTexture}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 5, gbuffer.descriptors().descriptorSet(currentFrameModInFlight, 0)),
-                new TextureDescriptorWrite(new PlortTexture[]{new PlortTexture(sceneShadowMaps[imageIndex], shadowSampler)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 6, gbuffer.descriptors().descriptorSet(currentFrameModInFlight, 0)),
-                new TextureDescriptorWrite(new PlortTexture[]{new PlortTexture(playerShadowMaps[imageIndex], shadowSampler)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 7, gbuffer.descriptors().descriptorSet(currentFrameModInFlight, 0)),
-                new BufferDescriptorWrite(List.of(playerController.viewBuffer()), PlortDescriptor.Type.UNIFORM_BUFFER, 8, gbuffer.descriptors().descriptorSet(currentFrameModInFlight, 0)),
-                new BufferDescriptorWrite(List.of(metaBuffer), PlortDescriptor.Type.UNIFORM_BUFFER, 9, gbuffer.descriptors().descriptorSet(currentFrameModInFlight, 0)),
-                new BufferDescriptorWrite(List.of(sceneBuffer), PlortDescriptor.Type.UNIFORM_BUFFER, 10, gbuffer.descriptors().descriptorSet(currentFrameModInFlight, 0)),
-                new BufferDescriptorWrite(List.of(playerShadowBuffer), PlortDescriptor.Type.UNIFORM_BUFFER, 11, gbuffer.descriptors().descriptorSet(currentFrameModInFlight, 0))
-        ));
-
-        gbuffer.submitShadingPass(cmdBuffer, currentFrameModInFlight);
+        gbuffer.bindDescriptorSet(cmdBuffer, imageIndex);
+        gbuffer.submitShadingPass(cmdBuffer);
 
         if (GameState.renderDebug) {
             aabbPipeline.bind(cmdBuffer, PipelineBindPoint.GRAPHICS);
-            context.device().writeDescriptorSets(List.of(
-                    new BufferDescriptorWrite(List.of(playerController.viewBuffer()), PlortDescriptor.Type.UNIFORM_BUFFER, 0, aabbDescriptors.descriptorSet(currentFrameModInFlight, 0))
-            ));
 
             try (MemoryStack stack = MemoryStack.stackPush()) {
-                cmdBuffer.bindDescriptorSets(PipelineBindPoint.GRAPHICS, aabbPipelineLayout, 0, stack.longs(aabbDescriptors.descriptorSet(currentFrameModInFlight, 0)), null);
-                PlortBuffer buffer = world.aabbBuffer(currentFrameModInFlight);
+                cmdBuffer.bindDescriptorSets(PipelineBindPoint.GRAPHICS, aabbPipelineLayout, 0, stack.longs(aabbDescriptors.descriptorSet(imageIndex, 0)), null);
+                PlortBuffer buffer = world.aabbBuffer(imageIndex);
                 cmdBuffer.pushConstants(aabbPipelineLayout, PlortShaderStage.Stage.MESH.bit(), 0, MemoryUtil.memByteBuffer(stack.longs(buffer != null ? buffer.deviceAddress() : 0)));
                 cmdBuffer.drawMeshTasksEXT((int) world.aabbCount(), 1, 1);
             }
@@ -492,16 +535,9 @@ public class Renderer implements AutoCloseable {
     }
 
     private void computeSSAO(PlortCommandBuffer cmdBuffer, int imageIndex) {
-        context.device().writeDescriptorSets(List.of(
-                new TextureDescriptorWrite(new PlortTexture[]{gbuffer.positionTexture(imageIndex)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 0, ssaoDescriptors.descriptorSet(currentFrameModInFlight, 0)),
-                new TextureDescriptorWrite(new PlortTexture[]{gbuffer.normalTexture(imageIndex)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 1, ssaoDescriptors.descriptorSet(currentFrameModInFlight, 0)),
-                new TextureDescriptorWrite(new PlortTexture[]{noiseTexture}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 2, ssaoDescriptors.descriptorSet(currentFrameModInFlight, 0)),
-                new BufferDescriptorWrite(List.of(playerController.viewBuffer()), PlortDescriptor.Type.UNIFORM_BUFFER, 3, ssaoDescriptors.descriptorSet(currentFrameModInFlight, 0)),
-                new TextureDescriptorWrite(new PlortImage[]{ssaoTexture.image()}, PlortImage.Layout.GENERAL, 4, ssaoDescriptors.descriptorSet(currentFrameModInFlight, 0))
-        ));
-
         try (MemoryStack stack = MemoryStack.stackPush()) {
-            ssaoTexture.image().transitionLayout(
+
+            ssaoTargetImages[imageIndex].transitionLayout(
                     cmdBuffer,
                     PlortImage.Layout.UNDEFINED, PlortImage.Layout.GENERAL,
                     PipelineStage.TOP_OF_PIPE_BIT, PipelineStage.COMPUTE_SHADER_BIT,
@@ -509,13 +545,13 @@ public class Renderer implements AutoCloseable {
             );
 
             ssaoPipeline.bind(cmdBuffer, PipelineBindPoint.COMPUTE);
-            cmdBuffer.bindDescriptorSets(PipelineBindPoint.COMPUTE, ssaoPipelineLayout, 0, stack.longs(ssaoDescriptors.descriptorSet(currentFrameModInFlight, 0)), null);
+            cmdBuffer.bindDescriptorSets(PipelineBindPoint.COMPUTE, ssaoPipelineLayout, 0, stack.longs(ssaoDescriptors.descriptorSet(imageIndex, 0)), null);
 
             int groupsX = (context.swapchain().extent().x() + 8 - 1) / 8;
             int groupsY = (context.swapchain().extent().y() + 8 - 1) / 8;
             cmdBuffer.dispatch(groupsX, groupsY, 1);
 
-            ssaoTexture.image().transitionLayout(
+            ssaoTargetImages[imageIndex].transitionLayout(
                     cmdBuffer,
                     PlortImage.Layout.GENERAL, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL,
                     PipelineStage.COMPUTE_SHADER_BIT, PipelineStage.FRAGMENT_SHADER_BIT,
@@ -524,12 +560,16 @@ public class Renderer implements AutoCloseable {
         }
     }
 
-    public boolean frame(double deltaTime) {
+    public int currentImageIndex() {
+        return currentImageIndex;
+    }
+
+    public int startFrame() {
         if (context.waitForFence(currentFrameModInFlight)) {
             timeoutLastFrame = true;
             timeoutTimestamp = System.nanoTime();
             context.device().waitIdle();
-            return false;
+            return -1;
         }
         if (timeoutLastFrame) {
             LOGGER.warn("Fence timed out for {}ms", (System.nanoTime() - timeoutTimestamp) / 1e+6);
@@ -537,7 +577,11 @@ public class Renderer implements AutoCloseable {
         }
 
         int imageIndex = context.acquireNextImage(currentFrameModInFlight);
+        currentImageIndex = imageIndex;
+        return imageIndex;
+    }
 
+    public boolean frame(int imageIndex, double deltaTime) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkCommandBufferBeginInfo beginInfo = VkCommandBufferBeginInfo.calloc(stack)
                     .sType$Default();
@@ -632,18 +676,14 @@ public class Renderer implements AutoCloseable {
                 cmdBuffer.pipelineBarrier(stack, PipelineStage.COLOR_ATTACHMENT_OUTPUT_BIT, PipelineStage.FRAGMENT_SHADER_BIT | PipelineStage.COMPUTE_SHADER_BIT, 0, null, null, color);
                 cmdBuffer.pipelineBarrier(stack, PipelineStage.LATE_FRAGMENT_TESTS_BIT, PipelineStage.FRAGMENT_SHADER_BIT | PipelineStage.COMPUTE_SHADER_BIT, 0, null, null, depth);
 
-                context.device().writeDescriptorSets(List.of(
-                        new BufferDescriptorWrite(List.of(postDrawDataBuffer), PlortDescriptor.Type.UNIFORM_BUFFER, 0, postDescriptors.descriptorSet(currentFrameModInFlight, 0)),
-                        new TextureDescriptorWrite(new PlortTexture[]{new PlortTexture(mainColorTextures[imageIndex], postSampler)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 1, postDescriptors.descriptorSet(currentFrameModInFlight, 0)),
-                        new TextureDescriptorWrite(new PlortTexture[]{new PlortTexture(gbuffer.depth(imageIndex), postSampler)}, PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL, 2, postDescriptors.descriptorSet(currentFrameModInFlight, 0))
-                ));
-
                 postRenderPass.begin(cmdBuffer, clearValues, imageIndex);
 
+                try (MappedMemory mem = postDrawDataBuffer.map()) {
+                    mem.putLong(playerController.viewBuffer(imageIndex).deviceAddress());
+                    mem.putLong(metaBuffer.deviceAddress());
+                }
                 postPipeline.bind(cmdBuffer, PipelineBindPoint.GRAPHICS);
-                long gbufferDescriptor = postDescriptors.descriptorSet(currentFrameModInFlight, 0);
-
-                cmdBuffer.bindDescriptorSets(PipelineBindPoint.GRAPHICS, postPipelineLayout, 0, stack.longs(gbufferDescriptor), null);
+                cmdBuffer.bindDescriptorSets(PipelineBindPoint.GRAPHICS, postPipelineLayout, 0, stack.longs(postDescriptors.descriptorSet(imageIndex, 0)), null);
                 cmdBuffer.drawMeshTasksEXT(1,1,1);
 
                 dynamicTextBuffers.replace(imageIndex, atlas.buildTextBuffer(List.of(
@@ -695,7 +735,7 @@ public class Renderer implements AutoCloseable {
 
         metaBuffer.close();
         sceneBuffer.close();
-        playerShadowBuffer.close();
+        try {shadowInfoBuffers.close();} catch (Exception _) {}
         identityTransformBuffer.close();
 
         for (PlortImage shadowMap : sceneShadowMaps) if (shadowMap != null) shadowMap.close();
@@ -713,7 +753,8 @@ public class Renderer implements AutoCloseable {
         meshDescriptors.close();
         meshModule.close();
 
-        ssaoTexture.close();
+        for (PlortImage target : ssaoTargetImages) if (target != null) target.close();
+        ssaoSampler.close();
         ssaoPipeline.close();
         ssaoPipelineLayout.close();
         ssaoLayout.close();

@@ -1,6 +1,7 @@
 package net.flamgop.borked.camera;
 
 import com.github.stephengold.joltjni.*;
+import com.github.stephengold.joltjni.Plane;
 import com.github.stephengold.joltjni.enumerate.EGroundState;
 import com.github.stephengold.joltjni.readonly.ConstAaBox;
 import com.github.stephengold.joltjni.readonly.ConstMotionProperties;
@@ -9,8 +10,12 @@ import net.flamgop.borked.World;
 import net.flamgop.borked.math.*;
 import net.flamgop.borked.physics.Layers;
 import net.flamgop.borked.physics.PhysicsContext;
+import net.flamgop.borked.renderer.PlortCommandBuffer;
 import net.flamgop.borked.renderer.PlortRenderContext;
 import net.flamgop.borked.model.PlortModel;
+import net.flamgop.borked.renderer.descriptor.PlortBufferedDescriptorSetPool;
+import net.flamgop.borked.renderer.memory.BufferedObject;
+import net.flamgop.borked.renderer.pipeline.PlortPipelineLayout;
 import net.flamgop.borked.renderer.window.PlortInput;
 import net.flamgop.borked.renderer.window.PlortWindow;
 import net.flamgop.borked.renderer.memory.BufferUsage;
@@ -20,6 +25,9 @@ import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.foreign.Arena;
+
+@SuppressWarnings("resource")
 public class PlayerController implements AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(PlayerController.class);
     public static final int VIEW_SIZE = 5 * Matrix4f.BYTES + 4 * Float.BYTES;
@@ -30,17 +38,14 @@ public class PlayerController implements AutoCloseable {
     }
 
     private final PlortInput input;
-    private final PlortBuffer viewBuffer;
+    private final BufferedObject<PlortBuffer> viewBuffers;
 
-    private final PlortBuffer shadowBuffer;
-    private final Matrix4f shadowView = new Matrix4f();
-    private final Matrix4f shadowProjection = new Matrix4f();
-    private final Vector3f lightPos = new Vector3f();
     private final Vector3f targetLightPos = new Vector3f();
-    private final float lightSmoothSpeed = 0.0005f;
 
-    private final PlortBuffer instanceBuffer;
+    private final BufferedObject<PlortBuffer> instanceBuffers;
     private final PlortModel model;
+    private final PlortBufferedDescriptorSetPool descriptorSetPool;
+    private final PlortBufferedDescriptorSetPool shadowDescriptorSetPool;
 
     private final Vector3f velocity = new Vector3f(0);
 
@@ -82,13 +87,17 @@ public class PlayerController implements AutoCloseable {
 
     public PlayerController(PhysicsContext physicsContext, PlortRenderContext context, PlortWindow window, float fov, float sensitivity) {
         this.input = window.input();
-        this.viewBuffer = new PlortBuffer(VIEW_SIZE, BufferUsage.UNIFORM_BUFFER_BIT, context.allocator());
+        this.viewBuffers = new BufferedObject<>(PlortBuffer.class, context.swapchain().imageCount(), _ -> new PlortBuffer(VIEW_SIZE, BufferUsage.UNIFORM_BUFFER_BIT, context.allocator()));
         this.fov = fov;
         this.sensitivity = sensitivity;
         this.model = new PlortModel(context, "player.glb");
-        this.instanceBuffer = new PlortBuffer(2 * Matrix4f.BYTES, BufferUsage.STORAGE_BUFFER_BIT, context.allocator());
-        this.shadowBuffer = new PlortBuffer(VIEW_SIZE, BufferUsage.UNIFORM_BUFFER_BIT, context.allocator());
+        this.descriptorSetPool = new PlortBufferedDescriptorSetPool(context.device(), model.layout(), model.materialCount(), context.swapchain().imageCount());
+        this.shadowDescriptorSetPool = new PlortBufferedDescriptorSetPool(context.device(), model.layout(), model.materialCount(), context.swapchain().imageCount());
+        this.instanceBuffers = new BufferedObject<>(PlortBuffer.class, context.swapchain().imageCount(), _ -> new PlortBuffer(2 * Matrix4f.BYTES, BufferUsage.STORAGE_BUFFER_BIT, context.allocator()));
         this.resize(window.width(), window.height());
+
+        model.writeDescriptors(context, descriptorSetPool);
+        model.writeDescriptors(context, shadowDescriptorSetPool);
 
         CharacterVirtualSettings settings = new CharacterVirtualSettings();
         settings.setShape(new BoxShape(halfWidth, halfHeight, halfWidth));
@@ -132,38 +141,29 @@ public class PlayerController implements AutoCloseable {
         allButMeFilter = filter;
     }
 
-    private void uploadShadowBuffer() {
-        Vector3f up = new Vector3f(0, 1, 0);
-        shadowView.identity().lookAt(lightPos, new Vector3f(0), up);
+    public void setupViewBuffers(int frame, PlortBuffer shadowViewBuffer) {
+        this.model.writeViewBuffer(this.viewBuffers.get(frame), m -> descriptorSetPool.descriptorSet(frame, m));
+        this.model.writeViewBuffer(shadowViewBuffer, m -> shadowDescriptorSetPool.descriptorSet(frame, m));
+    }
 
-        float orthoHalfSize = 25.0f;
-        float near = 0.01f;
-        float far = 50f;
-        shadowProjection.setFrom(new Matrix4f().orthographic(
-                -orthoHalfSize, orthoHalfSize,
-                -orthoHalfSize, orthoHalfSize,
-                near, far,
-                true
-        ));
-        Matrix4f viewProj = new Matrix4f(shadowProjection).multiply(shadowView);
-
-        try (MappedMemory mem = shadowBuffer.map()) {
-            mem.putMatrix4f(viewProj);
-            mem.putMatrix4f(shadowView);
-            mem.putMatrix4f(shadowProjection);
-            mem.putMatrix4f(new Matrix4f(shadowView).invert());
-            mem.putMatrix4f(new Matrix4f(shadowProjection).invert());
-            mem.putVector3f(lightPos);
-            mem.putFloat(0f);
+    public Frustum computeFrustum() {
+        try (Arena arena = Arena.ofConfined()) {
+            return Frustum.fromMatrix(new Matrix4f(arena, projection).multiply(view));
         }
     }
 
-    public PlortBuffer shadowBuffer() {
-        return shadowBuffer;
+    public Frustum computeFrustum(Arena arena) {
+        try (Arena tempArena = Arena.ofConfined()) {
+            return Frustum.fromMatrix(arena, new Matrix4f(tempArena, projection).multiply(view));
+        }
     }
 
-    public Vector3f position() {
+    public Vector3f playerPosition() {
         return new Vector3f(position);
+    }
+
+    public Vector3f cameraPosition() {
+        return new Vector3f(currentCameraPos);
     }
 
     public Vector3f cameraForward() {
@@ -182,8 +182,8 @@ public class PlayerController implements AutoCloseable {
         this.lockedPosition.setFrom(lockedPosition);
     }
 
-    public PlortBuffer instanceBuffer() {
-        return instanceBuffer;
+    public PlortBuffer instanceBuffer(int imageIndex) {
+        return instanceBuffers.get(imageIndex);
     }
 
     public Vector3f cameraForwardFlat() {
@@ -336,17 +336,9 @@ public class PlayerController implements AutoCloseable {
         return maxDist;
     }
 
-    private void upload() {
-        try (MappedMemory mem = viewBuffer.map()) {
-            mem.putMatrix4f(new Matrix4f(projection).multiply(view));
-            mem.putMatrix4f(view);
-            mem.putMatrix4f(projection);
-            mem.putMatrix4f(new Matrix4f(view).invert());
-            mem.putMatrix4f(new Matrix4f(projection).invert());
-            mem.putVector3f(currentCameraPos);
-            mem.putFloat(0f);
-        }
-        try (MappedMemory mem = instanceBuffer.map()) {
+    public void upload(int imageIndex) {
+        ViewHelper.uploadViewBuffer(viewBuffers.get(imageIndex), view, projection, currentCameraPos);
+        try (MappedMemory mem = instanceBuffers.get(imageIndex).map()) {
             Matrix4f transform = new Matrix4f();
 
             float half = (float) Math.toRadians(playerYaw) * 0.5f;
@@ -357,7 +349,6 @@ public class PlayerController implements AutoCloseable {
             mem.putMatrix4f(transform);
             mem.putMatrix4f(transform.invert());
         }
-        uploadShadowBuffer();
     }
 
     public void update(World world, PhysicsContext physicsContext, float deltaTime) {
@@ -370,7 +361,6 @@ public class PlayerController implements AutoCloseable {
         } else {
             targetLightPos.set(0, 25f, 0f);
         }
-        lightPos.lerp(targetLightPos, lightSmoothSpeed, deltaTime);
 
         cameraTargetPos.lerp(position, targetFollowSpeed, deltaTime);
 
@@ -397,19 +387,26 @@ public class PlayerController implements AutoCloseable {
         currentCameraPos.lerp(desiredCameraPos, smoothSpeed, deltaTime);
 
         view.identity().lookAt(currentCameraPos, pivot, up);
-
-        upload();
     }
 
-    public PlortBuffer viewBuffer() {
-        return viewBuffer;
+    public void submit(PlortCommandBuffer cmdBuffer, PlortPipelineLayout pipelineLayout, int frame, boolean shadow) {
+        this.model.submit(cmdBuffer, pipelineLayout, this.instanceBuffers.get(frame), shadow ? shadowDescriptorSetPool : descriptorSetPool, 1, frame);
+    }
+
+    public Vector3f targetLightPos() {
+        return targetLightPos;
+    }
+
+    public PlortBuffer viewBuffer(int imageIndex) {
+        return viewBuffers.get(imageIndex);
     }
 
     @Override
     public void close() {
         this.model.close();
-        this.instanceBuffer.close();
-        this.shadowBuffer.close();
-        this.viewBuffer.close();
+        this.descriptorSetPool.close();
+        this.shadowDescriptorSetPool.close();
+        try {this.instanceBuffers.close();} catch (Exception _) {}
+        try {this.viewBuffers.close();} catch (Exception _) {}
     }
 }

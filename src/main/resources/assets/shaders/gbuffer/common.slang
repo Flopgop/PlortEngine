@@ -25,15 +25,9 @@ struct SceneData {
     
     float3 fog_color;
     float fog_density;
-
-    ShadowData* shadow;
 }
 
-struct ShadowData {
-    float4x4 view_projection;
-    float4x4 view;
-    float4x4 projection;
-    float4x4 inverse_view;
-    float4x4 inverse_projection;
-    float4 camera_position;
+struct ShadowInfo {
+    ViewData *player_shadows;
+    ViewData *scene_shadows;
 }

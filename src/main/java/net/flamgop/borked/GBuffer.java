@@ -161,6 +161,10 @@ public class GBuffer implements AutoCloseable {
                 .buildGraphics();
     }
 
+    public PlortPipelineLayout pipelineLayout() {
+        return gbufferPipelineLayout;
+    }
+
     public PlortRenderPass renderPass() {
         return this.gbufferRenderPass;
     }
@@ -205,14 +209,16 @@ public class GBuffer implements AutoCloseable {
         return this.gbufferDescriptors;
     }
 
-    public void submitShadingPass(PlortCommandBuffer cmdBuffer, int currentFrameModInFlight) {
-        try (MemoryStack stack =  MemoryStack.stackPush()) {
-            gbufferPipeline.bind(cmdBuffer, PipelineBindPoint.GRAPHICS);
-            long gbufferDescriptor = gbufferDescriptors.descriptorSet(currentFrameModInFlight, 0);
-
+    public void bindDescriptorSet(PlortCommandBuffer cmdBuffer, int frame) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            long gbufferDescriptor = gbufferDescriptors.descriptorSet(frame, 0);
             cmdBuffer.bindDescriptorSets(PipelineBindPoint.GRAPHICS, gbufferPipelineLayout, 0, stack.longs(gbufferDescriptor), null);
-            cmdBuffer.drawMeshTasksEXT(1,1,1);
         }
+    }
+
+    public void submitShadingPass(PlortCommandBuffer cmdBuffer) {
+        gbufferPipeline.bind(cmdBuffer, PipelineBindPoint.GRAPHICS);
+        cmdBuffer.drawMeshTasksEXT(1,1,1);
     }
 
     public void transitionImagesForSubmit(PlortCommandBuffer cmdBuffer, int imageIndex) {

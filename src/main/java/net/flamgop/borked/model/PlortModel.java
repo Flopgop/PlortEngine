@@ -3,6 +3,7 @@ package net.flamgop.borked.model;
 import net.flamgop.borked.math.AABB;
 import net.flamgop.borked.math.Matrix4f;
 import net.flamgop.borked.renderer.PlortCommandBuffer;
+import net.flamgop.borked.renderer.PlortDevice;
 import net.flamgop.borked.renderer.descriptor.PlortBufferedDescriptorSetPool;
 import net.flamgop.borked.renderer.PlortRenderContext;
 import net.flamgop.borked.renderer.descriptor.PlortDescriptor;
@@ -36,6 +37,8 @@ public class PlortModel implements AutoCloseable {
     private static PlortTexture nullNormal = null;
     private static PlortTexture nullTexture = null;
 
+    private final PlortDevice device;
+
     private final List<PlortMesh> meshes = new ArrayList<>();
     private final List<PlortTexture> textures = new ArrayList<>();
     private final Map<PlortMesh, Integer> materialMappings = new HashMap<>();
@@ -46,8 +49,7 @@ public class PlortModel implements AutoCloseable {
     private final int materialCount;
 
     private final PlortDescriptorSetLayout layout;
-    private final PlortBufferedDescriptorSetPool descriptorSets;
-    private final PlortBufferedDescriptorSetPool shadowDescriptorSets;
+    private final List<PlortMaterial> materials = new ArrayList<>();
 
     private boolean closed = false;
 
@@ -65,6 +67,8 @@ public class PlortModel implements AutoCloseable {
         if (nullNormal == null) {
             nullNormal = ResourceHelper.loadTextureFromResources(engine, "assets/textures/null_normal.png");
         }
+
+        this.device = engine.device();
 
         AIScene scene = Assimp.aiImportFile(
                 path,
@@ -89,12 +93,10 @@ public class PlortModel implements AutoCloseable {
                 new PlortDescriptor(PlortDescriptor.Type.COMBINED_IMAGE_SAMPLER, 1, PlortShaderStage.Stage.FRAGMENT.bit()),
                 new PlortDescriptor(PlortDescriptor.Type.COMBINED_IMAGE_SAMPLER, 1, PlortShaderStage.Stage.FRAGMENT.bit())
         );
-        this.descriptorSets = new PlortBufferedDescriptorSetPool(engine.device(), layout, scene.mNumMaterials(), engine.swapchain().imageCount());
-        this.shadowDescriptorSets = new PlortBufferedDescriptorSetPool(engine.device(), layout, scene.mNumMaterials(), engine.swapchain().imageCount());
         materialCount = scene.mNumMaterials();
 
-        Map<String, PlortTexture> textureMap = new HashMap<>();
         PointerBuffer pTextures = scene.mTextures();
+        Map<String, PlortTexture> textureMap = new HashMap<>();
         if (pTextures == null) LOGGER.warn("Scene has a null texture buffer, this may be problematic.");
         else {
             for (int i = 0; i < scene.mNumTextures(); i++) {
@@ -125,8 +127,7 @@ public class PlortModel implements AutoCloseable {
             }
         }
 
-        writeDescriptors(engine, scene, textureMap, descriptorSets);
-        writeDescriptors(engine, scene, textureMap, shadowDescriptorSets);
+        buildMaterials(engine, scene, textureMap);
 
         aabb = traverseNode(engine.allocator(), scene, rootNode);
         this.childAABBs = meshes.stream().map(PlortMesh::aabb).toList();
@@ -134,12 +135,17 @@ public class PlortModel implements AutoCloseable {
         Assimp.aiFreeScene(scene);
     }
 
-    @SuppressWarnings("resource")
-    private void writeDescriptors(PlortRenderContext engine, AIScene scene, Map<String, PlortTexture> textureMap, PlortBufferedDescriptorSetPool descriptorSets) {
+    public PlortDescriptorSetLayout layout() {
+        return this.layout;
+    }
+
+    public int materialCount() {
+        return materialCount;
+    }
+
+    private void buildMaterials(PlortRenderContext engine, AIScene scene, Map<String, PlortTexture> textureMap) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             AIColor4D outColor = AIColor4D.calloc(stack);
-            VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(engine.swapchain().imageCount() * scene.mNumMaterials() * 2, stack);
-            VkDescriptorImageInfo.Buffer imageInfos = VkDescriptorImageInfo.calloc(scene.mNumMaterials() * 2, stack);
             PointerBuffer pMaterials = scene.mMaterials();
             if (pMaterials == null) throw new NullPointerException("Scene has a null material buffer.");
             for (int i = 0; i < scene.mNumMaterials(); i++) {
@@ -180,15 +186,27 @@ public class PlortModel implements AutoCloseable {
                     normal = nullNormal;
                 }
 
-                albedo.image().info(imageInfos.get(i * 2));
-                albedo.sampler().info(imageInfos.get(i * 2));
+                materials.add(new PlortMaterial("mat_" + i, albedo, normal));
+            }
+        }
+    }
+
+    @SuppressWarnings("resource")
+    public void writeDescriptors(PlortRenderContext engine, PlortBufferedDescriptorSetPool descriptorSets) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(engine.swapchain().imageCount() * materials.size() * PlortMaterial.TEXTURE_COUNT, stack);
+            VkDescriptorImageInfo.Buffer imageInfos = VkDescriptorImageInfo.calloc(materials.size() * PlortMaterial.TEXTURE_COUNT, stack);
+            for (int i = 0; i < materials.size(); i++) {
+                PlortMaterial material = materials.get(i);
+                material.albedo().image().info(imageInfos.get(i * 2));
+                material.albedo().sampler().info(imageInfos.get(i * 2));
                 imageInfos.get(i * 2).imageLayout(PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL.qualifier());
-                normal.image().info(imageInfos.get(i * 2 + 1));
-                normal.sampler().info(imageInfos.get(i * 2 + 1));
+                material.normal().image().info(imageInfos.get(i * 2 + 1));
+                material.normal().sampler().info(imageInfos.get(i * 2 + 1));
                 imageInfos.get(i * 2 + 1).imageLayout(PlortImage.Layout.SHADER_READ_ONLY_OPTIMAL.qualifier());
 
                 for (int f = 0; f < engine.swapchain().imageCount(); f++) {
-                    writes.get(f * scene.mNumMaterials() * 2 + i * 2)
+                    writes.get(f * materials.size() * 2 + i * 2)
                             .sType$Default()
                             .descriptorCount(1)
                             .descriptorType(PlortDescriptor.Type.COMBINED_IMAGE_SAMPLER.qualifier())
@@ -196,7 +214,7 @@ public class PlortModel implements AutoCloseable {
                             .dstBinding(1)
                             .pImageInfo(imageInfos.slice(2 * i, 1));
 
-                    writes.get(f * scene.mNumMaterials() * 2 + i * 2 + 1)
+                    writes.get(f * materials.size() * 2 + i * 2 + 1)
                             .sType$Default()
                             .descriptorCount(1)
                             .descriptorType(PlortDescriptor.Type.COMBINED_IMAGE_SAMPLER.qualifier())
@@ -205,7 +223,6 @@ public class PlortModel implements AutoCloseable {
                             .pImageInfo(imageInfos.slice(2 * i + 1, 1));
                 }
             }
-
             engine.device().updateDescriptorSets(writes, null);
         }
     }
@@ -244,7 +261,7 @@ public class PlortModel implements AutoCloseable {
             for (int i = 0; i < meshIndices.capacity(); i++) {
                 int meshIndex = meshIndices.get(i);
                 AIMesh mesh = AIMesh.create(pMeshes.get(meshIndex));
-                PlortMesh pm = new PlortMesh(allocator, mesh, !noCollision, Matrix4f.fromAssimp(node.mTransformation()));
+                PlortMesh pm = new PlortMesh(allocator, mesh, Matrix4f.fromAssimp(node.mTransformation()));
 
                 meshes.add(pm);
                 materialMappings.put(pm, mesh.mMaterialIndex());
@@ -276,16 +293,8 @@ public class PlortModel implements AutoCloseable {
         return new AABB(aabb);
     }
 
-    public void setViewBuffer(PlortRenderContext engine, PlortBuffer viewBuffer, int currentFrameModInFlight) {
-        writeViewBuffer(engine, viewBuffer, i -> descriptorSets.descriptorSet(currentFrameModInFlight, i));
-    }
-
-    public void setShadowViewBuffer(PlortRenderContext engine, PlortBuffer viewBuffer, int currentFrameModInFlight) {
-        writeViewBuffer(engine, viewBuffer, i -> shadowDescriptorSets.descriptorSet(currentFrameModInFlight, i));
-    }
-
     @SuppressWarnings("resource")
-    private void writeViewBuffer(PlortRenderContext engine, PlortBuffer viewBuffer, IntToLongFunction materialDescriptorSetProvider) {
+    public void writeViewBuffer(PlortBuffer viewBuffer, IntToLongFunction materialDescriptorSetProvider) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(materialCount, stack);
             VkDescriptorBufferInfo.Buffer bufferInfos = VkDescriptorBufferInfo.calloc(materialCount, stack);
@@ -299,19 +308,17 @@ public class PlortModel implements AutoCloseable {
                         .dstSet(materialDescriptorSetProvider.applyAsLong(i))
                         .pBufferInfo(bufferInfos.slice(i, 1));
             }
-            engine.device().updateDescriptorSets(writes, null);
+            device.updateDescriptorSets(writes, null);
         }
     }
 
-    public void submit(PlortCommandBuffer cmdBuffer, PlortPipelineLayout layout, PlortBuffer instanceBuffer, int instanceCount, int currentFrameModInFlight, boolean shadow) {
+    public void submit(PlortCommandBuffer cmdBuffer, PlortPipelineLayout layout, PlortBuffer instanceBuffer, PlortBufferedDescriptorSetPool descriptorSetPool, int instanceCount, int descriptorSetIndex) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             ByteBuffer push = stack.calloc(4 * Long.BYTES);
             LongBuffer pDescriptor = stack.callocLong(1);
             for (PlortMesh mesh : meshes) {
                 if (materialMappings.containsKey(mesh)) {
-                    long descriptor = shadow ? shadowDescriptorSets.descriptorSet(currentFrameModInFlight, materialMappings.get(mesh)) : descriptorSets.descriptorSet(currentFrameModInFlight, materialMappings.get(mesh));
-
-                    pDescriptor.put(descriptor);
+                    pDescriptor.put(descriptorSetPool.descriptorSet(descriptorSetIndex, materialMappings.get(mesh)));
                     pDescriptor.flip();
 
                     cmdBuffer.bindDescriptorSets(PipelineBindPoint.GRAPHICS, layout, 0, pDescriptor, null);
@@ -341,8 +348,6 @@ public class PlortModel implements AutoCloseable {
     @Override
     public void close() {
         this.closed = true;
-        descriptorSets.close();
-        shadowDescriptorSets.close();
         layout.close();
         meshes.forEach(PlortMesh::close);
         textures.forEach(PlortTexture::close);

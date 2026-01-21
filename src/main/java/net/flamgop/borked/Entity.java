@@ -5,19 +5,20 @@ import com.github.stephengold.joltjni.enumerate.EActivation;
 import com.github.stephengold.joltjni.enumerate.EMotionType;
 import com.github.stephengold.joltjni.readonly.ConstShape;
 import com.github.stephengold.joltjni.readonly.QuatArg;
+import net.flamgop.borked.math.AABB;
 import net.flamgop.borked.math.Matrix4f;
 import net.flamgop.borked.math.Quaternionf;
 import net.flamgop.borked.math.Vector3f;
 import net.flamgop.borked.physics.PhysicsContext;
 import net.flamgop.borked.renderer.PlortCommandBuffer;
-import net.flamgop.borked.renderer.memory.BufferUsage;
-import net.flamgop.borked.renderer.memory.MappedMemory;
-import net.flamgop.borked.renderer.memory.PlortAllocator;
-import net.flamgop.borked.renderer.memory.PlortBuffer;
+import net.flamgop.borked.renderer.PlortRenderContext;
+import net.flamgop.borked.renderer.descriptor.PlortBufferedDescriptorSetPool;
+import net.flamgop.borked.renderer.memory.*;
 import net.flamgop.borked.model.PlortMesh;
 import net.flamgop.borked.model.PlortModel;
 import net.flamgop.borked.renderer.pipeline.PlortPipelineLayout;
 
+import java.lang.foreign.Arena;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -28,20 +29,27 @@ public class Entity implements AutoCloseable {
     private static final int INSTANCE_BUFFER_SIZE = 2 * Matrix4f.BYTES; // model, inverse_model
 
     private final PlortModel model;
-    private final PlortBuffer instanceBuffer;
+    private final PlortBufferedDescriptorSetPool descriptorSetPool;
+    private final PlortBufferedDescriptorSetPool shadowDescriptorSetPool;
+
+    private final BufferedObject<PlortBuffer> instanceBuffers;
 
     private final Matrix4f transform = new Matrix4f().identity();
-    private boolean transformDirty = true;
 
     private final PhysicsContext physicsContext;
     private final List<Body> bodies = new ArrayList<>();
 
     private final boolean dynamic;
 
-    public Entity(PhysicsContext physics, PlortModel model, PlortAllocator allocator) {
+    public Entity(PlortRenderContext renderContext, PhysicsContext physics, PlortModel model, PlortAllocator allocator) {
         this.physicsContext = physics;
         this.model = model;
+        this.descriptorSetPool = new PlortBufferedDescriptorSetPool(renderContext.device(), model.layout(), model.materialCount(), renderContext.swapchain().imageCount());
+        this.shadowDescriptorSetPool = new PlortBufferedDescriptorSetPool(renderContext.device(), model.layout(), model.materialCount(), renderContext.swapchain().imageCount());
         this.dynamic = model.childAABBs().size() == 1;
+
+        model.writeDescriptors(renderContext, descriptorSetPool);
+        model.writeDescriptors(renderContext, shadowDescriptorSetPool);
 
         Quaternionf identity = new Quaternionf();
         for (PlortMesh child : model.childMeshes()) {
@@ -61,13 +69,25 @@ public class Entity implements AutoCloseable {
             bodies.add(body);
         }
 
-        this.instanceBuffer = new PlortBuffer(INSTANCE_BUFFER_SIZE, BufferUsage.STORAGE_BUFFER_BIT, allocator);
+        this.instanceBuffers = new BufferedObject<>(PlortBuffer.class, renderContext.swapchain().imageCount(), _ -> new PlortBuffer(INSTANCE_BUFFER_SIZE, BufferUsage.STORAGE_BUFFER_BIT, allocator));
 
         if (dynamic && !bodies.isEmpty()) {
             Body body = bodies.getFirst();
             Vector3f pos = new Vector3f(body.getPosition());
             transform.identity().translate(pos.x(), pos.y(), pos.z());
         }
+
+        for (int i = 0; i < instanceBuffers.size(); i++) {
+            uploadTransform(this.instanceBuffers.get(i));
+        }
+    }
+
+    public void setViewBuffer(PlortBuffer viewBuffer, int currentFrameModInFlight) {
+        this.model.writeViewBuffer(viewBuffer, i -> descriptorSetPool.descriptorSet(currentFrameModInFlight, i));
+    }
+
+    public void setShadowViewBuffer(PlortBuffer viewBuffer, int currentFrameModInFlight) {
+        this.model.writeViewBuffer(viewBuffer, i -> shadowDescriptorSetPool.descriptorSet(currentFrameModInFlight, i));
     }
 
     public List<Body> bodies() {
@@ -78,8 +98,8 @@ public class Entity implements AutoCloseable {
         return new Matrix4f(transform);
     }
 
-    public void uploadTransform() {
-        try (MappedMemory mem = this.instanceBuffer.map()) {
+    public void uploadTransform(PlortBuffer buffer) {
+        try (MappedMemory mem = buffer.map()) {
             mem.putMatrix4f(new Matrix4f(transform));
             mem.putMatrix4f(new Matrix4f(transform).invert());
         }
@@ -97,7 +117,6 @@ public class Entity implements AutoCloseable {
         for (Body body : bodies) {
             bodyInterface.setPositionAndRotation(body.getId(), joltPos, joltRot, EActivation.Activate);
         }
-        transformDirty = true;
     }
 
     public void setPosition(Vector3f position) {
@@ -121,12 +140,16 @@ public class Entity implements AutoCloseable {
         return model;
     }
 
-    public void submit(PlortCommandBuffer cmdBuffer, PlortPipelineLayout pipelineLayout, int currentFrameModInFlight, boolean shadow) {
-        if (transformDirty) {
-            uploadTransform();
-            transformDirty = false;
-        }
-        model.submit(cmdBuffer, pipelineLayout, instanceBuffer, 1, currentFrameModInFlight, shadow);
+    public AABB transformedAABB() {
+        return this.model.aabb().translated(this.transform.position());
+    }
+
+    public AABB transformedAABB(Arena arena) {
+        return this.model.aabb().translated(arena, this.transform.position());
+    }
+
+    public void submit(PlortCommandBuffer cmdBuffer, PlortPipelineLayout pipelineLayout, int frame, boolean shadow) {
+        model.submit(cmdBuffer, pipelineLayout, instanceBuffers.get(frame), shadow ? shadowDescriptorSetPool : descriptorSetPool, 1, frame);
     }
 
     public void update(float deltaTime) {
@@ -139,12 +162,16 @@ public class Entity implements AutoCloseable {
             transform.translate(p.x(), p.y(), p.z());
             transform.rotate(r.normalize());
 
-            transformDirty = true;
+            for (int i = 0; i < instanceBuffers.size(); i++) {
+                uploadTransform(this.instanceBuffers.get(i));
+            }
         }
     }
 
     @Override
     public void close() {
-        instanceBuffer.close();
+        try {instanceBuffers.close();} catch (Exception _) {}
+        descriptorSetPool.close();
+        shadowDescriptorSetPool.close();
     }
 }

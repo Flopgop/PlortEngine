@@ -48,8 +48,13 @@ struct ViewData {
     float4 camera_position;
 }
 
+struct MetaData {
+    uint2 screen_size;
+}
+
 struct DrawData {
     ViewData *view_data;
+    MetaData *meta_data;
 }
 
 [[vk::binding(0, 0)]]
@@ -69,7 +74,25 @@ float get_linear_depth(float2 uv) {
     return view_space_pos.z / view_space_pos.w;
 }
 
+static const int bayer[16] = {
+    0, 8, 2, 10,
+    12, 4, 14, 6,
+    3, 11, 1, 9,
+    15, 7, 13, 5
+};
+
 [shader("fragment")]
 float4 fragment_main(AssembledVertex vertex) : SV_Target0 {
-    return float4(gbuffer_processed_color.Sample(vertex.uv).rgb, 1.0);
+    float3 color = gbuffer_processed_color.Sample(vertex.uv).rgb;
+
+    int2 p = int2(vertex.uv * post_data.meta_data->screen_size);
+    int d = bayer[(p.x & 3) + ((p.y & 3) << 2)];
+
+    float dither = (float(d) + 0.5) / 16.0 - 0.5;
+    float levels = 255.0;
+
+    color += dither / levels;
+    color = floor(color * levels) / levels;
+
+    return float4(color, 1.0);
 }

@@ -3,14 +3,10 @@ package net.flamgop.borked.math;
 import java.lang.foreign.Arena;
 
 /// note: this is NOT immutable, but my editor wants it to be a record so it is.
-public record AABB(Vector3f min, Vector3f max, boolean hasCollision) {
-
-    public AABB(Vector3f min, Vector3f max) {
-        this(min, max, true);
-    }
+public record AABB(Vector3f min, Vector3f max) {
 
     public AABB(AABB other) {
-        this(new Vector3f(other.min()), new Vector3f(other.max()), other.hasCollision());
+        this(new Vector3f(other.min()), new Vector3f(other.max()));
     }
 
     public Vector3f size() {
@@ -23,6 +19,10 @@ public record AABB(Vector3f min, Vector3f max, boolean hasCollision) {
 
     public AABB translated(Vector3f delta) {
         return new AABB(new Vector3f(min), new Vector3f(max)).translate(delta);
+    }
+
+    public AABB translated(Arena arena, Vector3f delta) {
+        return new AABB(new Vector3f(arena, min), new Vector3f(arena, max)).translate(delta);
     }
 
     public RaycastResult rayIntersects(Vector3f pos, Vector3f dir) {
