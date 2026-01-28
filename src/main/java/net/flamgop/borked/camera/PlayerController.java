@@ -2,11 +2,12 @@ package net.flamgop.borked.camera;
 
 import com.github.stephengold.joltjni.*;
 import com.github.stephengold.joltjni.Plane;
+import com.github.stephengold.joltjni.enumerate.EActivation;
 import com.github.stephengold.joltjni.enumerate.EGroundState;
 import com.github.stephengold.joltjni.readonly.ConstAaBox;
 import com.github.stephengold.joltjni.readonly.ConstMotionProperties;
+import com.github.stephengold.joltjni.readonly.QuatArg;
 import com.github.stephengold.joltjni.readonly.Vec3Arg;
-import net.flamgop.borked.World;
 import net.flamgop.borked.math.*;
 import net.flamgop.borked.physics.Layers;
 import net.flamgop.borked.physics.PhysicsContext;
@@ -21,6 +22,7 @@ import net.flamgop.borked.renderer.window.PlortWindow;
 import net.flamgop.borked.renderer.memory.BufferUsage;
 import net.flamgop.borked.renderer.memory.MappedMemory;
 import net.flamgop.borked.renderer.memory.PlortBuffer;
+import net.flamgop.borked.world.SceneData;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,7 +52,7 @@ public class PlayerController implements AutoCloseable {
     private final Vector3f velocity = new Vector3f(0);
 
     private final Vector3f up = new Vector3f(0,1,0);
-    private final Vector3f position = new Vector3f(-0.5f,10,-0.5f);
+    private final Vector3f position = new Vector3f(-0.5f,0,-0.5f);
     private final Matrix4f projection = new Matrix4f();
     private final Matrix4f view = new Matrix4f();
 
@@ -108,12 +110,20 @@ public class PlayerController implements AutoCloseable {
         settings.setMaxStrength(280);
         character = new CharacterVirtual(settings, position.toJoltVec3().toRVec3(), new Quaternionf().identity().toJoltQuat(), 0, physicsContext.system());
 
+        Quaternionf rot = new Quaternionf().identity();
+
+        RVec3 joltPos = position.toJoltVec3().toRVec3();
+        QuatArg joltRot = rot.toJoltQuat();
+
+        BodyInterface bodyInterface = physicsContext.system().getBodyInterface();
+
+        bodyInterface.setPositionAndRotation(character.getInnerBodyId(), joltPos, joltRot, EActivation.Activate);
+
+
         character.setListener(new CustomCharacterContactListener() {
             private final Vector3f mathVector = new Vector3f();
             @Override
             public void onContactAdded(long characterVa, int bodyId2, int subShapeId2, double contactLocationX, double contactLocationY, double contactLocationZ, float contactNormalX, float contactNormalY, float contactNormalZ, long settingsVa) {
-//                LOGGER.debug("Added character contact at {} {} {} with normal {} {} {}, settings va is {}", contactLocationX, contactLocationY, contactLocationZ, contactNormalX, contactNormalY, contactNormalZ, settingsVa);
-
                 if (characterVa != character.va()) throw new IllegalStateException("Our character contact generator somehow generated a contact for a *different* character");
 
                 BodyLockRead lock = new BodyLockRead(physicsContext.bodyLockInterface(), bodyId2);
@@ -148,13 +158,13 @@ public class PlayerController implements AutoCloseable {
 
     public Frustum computeFrustum() {
         try (Arena arena = Arena.ofConfined()) {
-            return Frustum.fromMatrix(new Matrix4f(arena, projection).multiply(view));
+            return Frustum.fromViewProjectionMatrix(new Matrix4f(arena, projection).multiply(view));
         }
     }
 
     public Frustum computeFrustum(Arena arena) {
         try (Arena tempArena = Arena.ofConfined()) {
-            return Frustum.fromMatrix(arena, new Matrix4f(tempArena, projection).multiply(view));
+            return Frustum.fromViewProjectionMatrix(arena, new Matrix4f(tempArena, projection).multiply(view));
         }
     }
 
@@ -351,13 +361,13 @@ public class PlayerController implements AutoCloseable {
         }
     }
 
-    public void update(World world, PhysicsContext physicsContext, float deltaTime) {
+    public void update(SceneData sceneData, PhysicsContext physicsContext, float deltaTime) {
         if (cameraMode == CameraMode.FOLLOWING) {
             look();
         }
         physicsStep(physicsContext, deltaTime);
         if (grounded) {
-            targetLightPos.setFrom(world.lightPos());
+            targetLightPos.setFrom(sceneData.lightPos());
         } else {
             targetLightPos.set(0, 25f, 0f);
         }

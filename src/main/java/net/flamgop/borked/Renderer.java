@@ -1,7 +1,8 @@
 package net.flamgop.borked;
 
 import net.flamgop.borked.camera.PlayerController;
-import net.flamgop.borked.math.Frustum;
+import net.flamgop.borked.entity.EntityManager;
+import net.flamgop.borked.entity.system.EntityRenderSystem;
 import net.flamgop.borked.math.Matrix4f;
 import net.flamgop.borked.math.Vector2f;
 import net.flamgop.borked.math.Vector3i;
@@ -19,6 +20,8 @@ import net.flamgop.borked.text.Atlas;
 import net.flamgop.borked.text.Text;
 import net.flamgop.borked.text.TextRenderer;
 import net.flamgop.borked.renderer.util.ResourceHelper;
+import net.flamgop.borked.util.Colors;
+import net.flamgop.borked.world.SceneData;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.vulkan.VkClearValue;
@@ -28,7 +31,7 @@ import org.lwjgl.vulkan.VkViewport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.foreign.Arena;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 
@@ -61,16 +64,8 @@ public class Renderer implements AutoCloseable {
     private final TextRenderer textRenderer;
     private final Atlas atlas;
 
-    private final PlortShaderModule meshModule;
-    private final PlortDescriptorSetLayout meshLayout;
-    private final PlortBufferedDescriptorSetPool meshDescriptors;
-    private final PlortPipelineLayout meshPipelineLayout;
-    private final PlortPipeline meshPipeline;
-
     private final PlortTexture noiseTexture;
 
-    // aeuhguehghueghauhgehuehguhaughe
-//    private PlortTexture ssaoTexture;
     private final PlortImage[] ssaoTargetImages;
     private final PlortSampler ssaoSampler;
     private final PlortShaderModule ssaoModule;
@@ -90,9 +85,6 @@ public class Renderer implements AutoCloseable {
     private final PlortRenderPass sceneShadowPass;
     private final PlortImage[] playerShadowMaps;
     private final PlortRenderPass playerShadowPass;
-    private final PlortShaderModule shadowModule;
-    private final PlortPipelineLayout shadowPipelineLayout;
-    private final PlortPipeline shadowPipeline;
 
     // these don't change often or ever, so we don't need to create multiple buffers here
     private final PlortBuffer metaBuffer;
@@ -102,18 +94,20 @@ public class Renderer implements AutoCloseable {
     private final BufferedObject<PlortBuffer> shadowInfoBuffers;
 
     // stuff we don't manage but render
+    private final GameState gameState;
     private final ShadowManager shadowManager;
     private final PlayerController playerController;
-    private final World world;
+    private final EntityManager entityManager;
 
     private int currentImageIndex = 0;
     private int currentFrameModInFlight = 0;
 
     // note: while we would create the context, camera controller has buffers in it so we can't.
-    public Renderer(PlortRenderContext context, PlayerController playerController, World world, ShadowManager shadowManager) {
-        this.playerController = playerController;
-        this.world = world;
+    public Renderer(GameState gameState, PlortRenderContext context, PlayerController playerController, EntityManager entityManager, ShadowManager shadowManager) {
+        this.gameState = gameState;
         this.context = context;
+        this.playerController = playerController;
+        this.entityManager = entityManager;
         this.shadowManager = shadowManager;
 
         context.onSwapchainInvalidate(this::onSwapchainInvalidate);
@@ -201,7 +195,11 @@ public class Renderer implements AutoCloseable {
         gbuffer = new GBuffer(context, mainRenderPass);
 
         textRenderer = new TextRenderer(context.device(), context.swapchain(), postRenderPass, context.swapchain().imageCount());
-        atlas = new Atlas(context.device(), context.allocator(), context.commandPool(), "assets/fonts/nunito");
+        try {
+            atlas = new Atlas(context.device(), context.allocator(), context.commandPool(), "assets/fonts/nunito");
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
 
         for (int i = 0; i < context.swapchain().imageCount(); i++) {
             textRenderer.switchAtlas(atlas, i);
@@ -216,36 +214,7 @@ public class Renderer implements AutoCloseable {
                 new Text("And another line of yet cooler text", Colors.green(), new Vector2f(0, 64 + 2 * atlas.lineHeight() * 0.5f), 0.5f)
         ));
 
-        ByteBuffer meshCode = ResourceHelper.loadFromResource("assets/shaders/mesh.spv");
-        this.meshModule = new PlortShaderModule(context.device(), meshCode);
-        meshModule.label("Mesh");
-        MemoryUtil.memFree(meshCode);
-
-        this.meshLayout = new PlortDescriptorSetLayout(
-                context.device(),
-                new PlortDescriptor(PlortDescriptor.Type.UNIFORM_BUFFER, 1, PlortShaderStage.Stage.ALL.bit()),
-                new PlortDescriptor(PlortDescriptor.Type.COMBINED_IMAGE_SAMPLER, 1, PlortShaderStage.Stage.FRAGMENT.bit()),
-                new PlortDescriptor(PlortDescriptor.Type.COMBINED_IMAGE_SAMPLER, 1, PlortShaderStage.Stage.FRAGMENT.bit())
-        );
-        this.meshDescriptors = new PlortBufferedDescriptorSetPool(context.device(), meshLayout, 1, context.swapchain().imageCount());
-
-        this.meshPipelineLayout = PlortPipelineLayout.builder(context.device())
-                .pushConstant(new PlortPushConstant(0, 4 * Long.BYTES, PlortShaderStage.Stage.ALL.bit()))
-                .descriptorSetLayouts(meshLayout)
-                .build();
-        this.meshPipeline = PlortPipeline.builder(context.device(), gbuffer.renderPass())
-                .shaderStage(new PlortShaderStage(PlortShaderStage.Stage.MESH, meshModule, "meshMain"))
-                .shaderStage(new PlortShaderStage(PlortShaderStage.Stage.FRAGMENT, meshModule, "fragmentMain"))
-                .layout(meshPipelineLayout)
-                .blendState(PlortBlendState.disabled())
-                .blendState(PlortBlendState.disabled())
-                .blendState(PlortBlendState.disabled())
-                .buildGraphics();
-
         sceneBuffer = new PlortBuffer(Long.BYTES, BufferUsage.UNIFORM_BUFFER_BIT, context.allocator());
-        try (MappedMemory mem = sceneBuffer.map()) {
-            mem.putLong(world.sceneBuffer().deviceAddress());
-        }
         shadowInfoBuffers = new BufferedObject<>(PlortBuffer.class, context.swapchain().imageCount(), _ -> new PlortBuffer(2 * Long.BYTES, BufferUsage.UNIFORM_BUFFER_BIT, context.allocator()));
         metaBuffer = new PlortBuffer(2 * Integer.BYTES, BufferUsage.UNIFORM_BUFFER_BIT, context.allocator());
         try (MappedMemory mem = metaBuffer.map()) {
@@ -384,24 +353,22 @@ public class Renderer implements AutoCloseable {
         playerShadowPass.recreate(4096, 4096);
         playerShadowPass.label("Player Shadow");
 
-        ByteBuffer shadowCode = ResourceHelper.loadFromResource("assets/shaders/shadow.spv");
-        this.shadowModule = new PlortShaderModule(context.device(), shadowCode);
-        shadowModule.label("Shadow");
-        MemoryUtil.memFree(shadowCode);
-
-        this.shadowPipelineLayout = PlortPipelineLayout.builder(context.device())
-                .descriptorSetLayouts(meshLayout)
-                .pushConstant(new PlortPushConstant(0, 4 * Long.BYTES, PlortShaderStage.Stage.ALL.bit()))
-                .build();
-        this.shadowPipeline = PlortPipeline.builder(context.device(), sceneShadowPass)
-                .shaderStage(new PlortShaderStage(PlortShaderStage.Stage.MESH, shadowModule, "meshMain"))
-                .shaderStage(new PlortShaderStage(PlortShaderStage.Stage.FRAGMENT, shadowModule, "fragmentMain"))
-                .layout(shadowPipelineLayout)
-                .depthStencilStateInfo(new PlortDepthStencilState(true, true, CompareOp.LESS, false, false, new PlortDepthStencilState.StencilOpState(), new PlortDepthStencilState.StencilOpState(), 0f, 1f))
-                .buildGraphics();
-
         for (int i = 0; i < context.swapchain().imageCount(); i++) {
             updateFrameDescriptors(i);
+        }
+    }
+
+    public GBuffer gbuffer() {
+        return gbuffer;
+    }
+
+    public PlortRenderPass shadowRenderPass() {
+        return sceneShadowPass;
+    }
+
+    public void sceneData(SceneData data) {
+        try (MappedMemory mem = sceneBuffer.map()) {
+            mem.putLong(data.buffer().deviceAddress());
         }
     }
 
@@ -491,45 +458,31 @@ public class Renderer implements AutoCloseable {
     long timeoutTimestamp = System.nanoTime();
     boolean timeoutLastFrame = false;
 
-    private void submitDeferred(PlortCommandBuffer cmdBuffer, int imageIndex) {
-        meshPipeline.bind(cmdBuffer, PipelineBindPoint.GRAPHICS);
-        playerController.submit(cmdBuffer, shadowPipelineLayout, imageIndex, false);
-
-        try (Arena arena = Arena.ofConfined()) {
-            Frustum playerFrustum = playerController.computeFrustum(arena);
-
-            world.entities.forEach(e -> {
-                if (playerFrustum.intersects(e.transformedAABB(arena))) {
-                    e.submit(cmdBuffer, meshPipelineLayout, imageIndex, false);
-                }
-            });
-        }
+    private void submitDeferred(EntityRenderSystem renderSystem, PlortCommandBuffer cmdBuffer, int imageIndex) {
+        renderSystem.renderPlayer(cmdBuffer, imageIndex, false);
+        renderSystem.render(cmdBuffer, entityManager, imageIndex, false);
     }
 
-    private void submitShadow(PlortCommandBuffer cmdBuffer, int imageIndex) {
-        shadowPipeline.bind(cmdBuffer, PipelineBindPoint.GRAPHICS);
-        world.entities.forEach(e -> {
-            e.submit(cmdBuffer, shadowPipelineLayout, imageIndex, true);
-        });
+    private void submitShadow(EntityRenderSystem renderSystem, PlortCommandBuffer cmdBuffer, int imageIndex) {
+        renderSystem.render(cmdBuffer, entityManager, imageIndex, true);
     }
 
-    private void submitPlayerShadow(PlortCommandBuffer cmdBuffer, int imageIndex) {
-        shadowPipeline.bind(cmdBuffer, PipelineBindPoint.GRAPHICS);
-        playerController.submit(cmdBuffer, shadowPipelineLayout, imageIndex, true);
+    private void submitPlayerShadow(EntityRenderSystem renderSystem, PlortCommandBuffer cmdBuffer, int imageIndex) {
+        renderSystem.renderPlayer(cmdBuffer, imageIndex, true);
     }
 
-    private void submitShading(PlortCommandBuffer cmdBuffer, double deltaTime, int imageIndex) {
+    private void submitShading(EntityRenderSystem renderSystem, PlortCommandBuffer cmdBuffer, double deltaTime, int imageIndex) {
         gbuffer.bindDescriptorSet(cmdBuffer, imageIndex);
         gbuffer.submitShadingPass(cmdBuffer);
 
-        if (GameState.renderDebug) {
+        if (gameState.renderDebug()) {
             aabbPipeline.bind(cmdBuffer, PipelineBindPoint.GRAPHICS);
 
             try (MemoryStack stack = MemoryStack.stackPush()) {
                 cmdBuffer.bindDescriptorSets(PipelineBindPoint.GRAPHICS, aabbPipelineLayout, 0, stack.longs(aabbDescriptors.descriptorSet(imageIndex, 0)), null);
-                PlortBuffer buffer = world.aabbBuffer(imageIndex);
+                PlortBuffer buffer = renderSystem.aabbBuffer(imageIndex);
                 cmdBuffer.pushConstants(aabbPipelineLayout, PlortShaderStage.Stage.MESH.bit(), 0, MemoryUtil.memByteBuffer(stack.longs(buffer != null ? buffer.deviceAddress() : 0)));
-                cmdBuffer.drawMeshTasksEXT((int) world.aabbCount(), 1, 1);
+                cmdBuffer.drawMeshTasksEXT((int) renderSystem.aabbCount(), 1, 1);
             }
         }
     }
@@ -581,7 +534,7 @@ public class Renderer implements AutoCloseable {
         return imageIndex;
     }
 
-    public boolean frame(int imageIndex, double deltaTime) {
+    public boolean frame(EntityRenderSystem renderSystem, int imageIndex, double deltaTime) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkCommandBufferBeginInfo beginInfo = VkCommandBufferBeginInfo.calloc(stack)
                     .sType$Default();
@@ -618,12 +571,12 @@ public class Renderer implements AutoCloseable {
 
                 sceneShadowMaps[imageIndex].transitionLayout(cmdBuffer, PlortImage.Layout.UNDEFINED, PlortImage.Layout.DEPTH_STENCIL_ATTACHMENT_OPTIMAL, PipelineStage.TOP_OF_PIPE_BIT, PipelineStage.EARLY_FRAGMENT_TESTS_BIT, VK_ACCESS_NONE, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
                 sceneShadowPass.begin(cmdBuffer, VkClearValue.calloc(1, stack).depthStencil(d -> d.depth(1.0f).stencil(0)), imageIndex);
-                submitShadow(cmdBuffer, imageIndex);
+                submitShadow(renderSystem, cmdBuffer, imageIndex);
                 sceneShadowPass.end(cmdBuffer);
 
                 playerShadowMaps[imageIndex].transitionLayout(cmdBuffer, PlortImage.Layout.UNDEFINED, PlortImage.Layout.DEPTH_STENCIL_ATTACHMENT_OPTIMAL, PipelineStage.TOP_OF_PIPE_BIT, PipelineStage.EARLY_FRAGMENT_TESTS_BIT, VK_ACCESS_NONE, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
                 playerShadowPass.begin(cmdBuffer, VkClearValue.calloc(1, stack).depthStencil(d -> d.depth(1.0f).stencil(0)), imageIndex);
-                submitPlayerShadow(cmdBuffer, imageIndex);
+                submitPlayerShadow(renderSystem, cmdBuffer, imageIndex);
                 playerShadowPass.end(cmdBuffer);
 
                 cmdBuffer.setViewport(0, viewport);
@@ -637,7 +590,7 @@ public class Renderer implements AutoCloseable {
 
                 gbuffer.beginSubmitPass(cmdBuffer, gClearValues, imageIndex);
 
-                submitDeferred(cmdBuffer, imageIndex);
+                submitDeferred(renderSystem, cmdBuffer, imageIndex);
 
                 gbuffer.endSubmitPass(cmdBuffer);
 
@@ -650,7 +603,7 @@ public class Renderer implements AutoCloseable {
 
                 mainRenderPass.begin(cmdBuffer, clearValues, imageIndex);
 
-                submitShading(cmdBuffer, deltaTime, imageIndex);
+                submitShading(renderSystem, cmdBuffer, deltaTime, imageIndex);
 
                 mainRenderPass.end(cmdBuffer);
 
@@ -687,7 +640,7 @@ public class Renderer implements AutoCloseable {
                 cmdBuffer.drawMeshTasksEXT(1,1,1);
 
                 dynamicTextBuffers.replace(imageIndex, atlas.buildTextBuffer(List.of(
-                        new Text(String.format("Frame Time: %.3fms FPS: %.3f AABBs: %d", deltaTime * 1000f, 1 / deltaTime, world.aabbCount()), Colors.red(), new Vector2f(0, 64), 0.5f)
+                        new Text(String.format("Frame Time: %.3fms FPS: %.3f AABBs: %d", deltaTime * 1000f, 1 / deltaTime, renderSystem.aabbCount()), Colors.red(), new Vector2f(0, 64), 0.5f)
                 )));
 
                 textRenderer.renderTextBuffer(cmdBuffer, dynamicTextBuffers.get(imageIndex), imageIndex);
@@ -743,15 +696,6 @@ public class Renderer implements AutoCloseable {
         shadowSampler.close();
         sceneShadowPass.close();
         playerShadowPass.close();
-        shadowModule.close();
-        shadowPipelineLayout.close();
-        shadowPipeline.close();
-
-        meshPipeline.close();
-        meshPipelineLayout.close();
-        meshLayout.close();
-        meshDescriptors.close();
-        meshModule.close();
 
         for (PlortImage target : ssaoTargetImages) if (target != null) target.close();
         ssaoSampler.close();

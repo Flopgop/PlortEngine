@@ -1,5 +1,7 @@
 package net.flamgop.borked.model;
 
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import net.flamgop.borked.math.AABB;
 import net.flamgop.borked.math.Matrix4f;
 import net.flamgop.borked.renderer.PlortCommandBuffer;
@@ -25,6 +27,7 @@ import org.lwjgl.vulkan.VkWriteDescriptorSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.foreign.Arena;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.nio.LongBuffer;
@@ -41,7 +44,7 @@ public class PlortModel implements AutoCloseable {
 
     private final List<PlortMesh> meshes = new ArrayList<>();
     private final List<PlortTexture> textures = new ArrayList<>();
-    private final Map<PlortMesh, Integer> materialMappings = new HashMap<>();
+    private final Object2IntMap<PlortMesh> materialMappings = new Object2IntOpenHashMap<>();
 
     private final List<AABB> childAABBs;
     private final AABB aabb;
@@ -50,6 +53,8 @@ public class PlortModel implements AutoCloseable {
 
     private final PlortDescriptorSetLayout layout;
     private final List<PlortMaterial> materials = new ArrayList<>();
+    private final LongBuffer pOut = MemoryUtil.memCallocLong(1);
+    private final ByteBuffer push = MemoryUtil.memCalloc(4 * Long.BYTES);
 
     private boolean closed = false;
 
@@ -293,6 +298,10 @@ public class PlortModel implements AutoCloseable {
         return new AABB(aabb);
     }
 
+    public AABB aabb(Arena arena) {
+        return new AABB(arena, aabb);
+    }
+
     @SuppressWarnings("resource")
     public void writeViewBuffer(PlortBuffer viewBuffer, IntToLongFunction materialDescriptorSetProvider) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
@@ -313,26 +322,23 @@ public class PlortModel implements AutoCloseable {
     }
 
     public void submit(PlortCommandBuffer cmdBuffer, PlortPipelineLayout layout, PlortBuffer instanceBuffer, PlortBufferedDescriptorSetPool descriptorSetPool, int instanceCount, int descriptorSetIndex) {
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            ByteBuffer push = stack.calloc(4 * Long.BYTES);
-            LongBuffer pDescriptor = stack.callocLong(1);
-            for (PlortMesh mesh : meshes) {
-                if (materialMappings.containsKey(mesh)) {
-                    pDescriptor.put(descriptorSetPool.descriptorSet(descriptorSetIndex, materialMappings.get(mesh)));
-                    pDescriptor.flip();
+        for (PlortMesh mesh : meshes) {
+            int mapping = materialMappings.getOrDefault(mesh, -1);
+            if (mapping != -1) {
+                pOut.put(descriptorSetPool.descriptorSet(descriptorSetIndex, mapping));
+                pOut.flip();
 
-                    cmdBuffer.bindDescriptorSets(PipelineBindPoint.GRAPHICS, layout, 0, pDescriptor, null);
-                }
-
-                push.putLong(mesh.vertexBuffer().deviceAddress());
-                push.putLong(mesh.meshBuffer().deviceAddress());
-                push.putLong(mesh.boundsBuffer().deviceAddress());
-                push.putLong(instanceBuffer.deviceAddress());
-                push.flip();
-
-                cmdBuffer.pushConstants(layout, PlortShaderStage.Stage.ALL.bit(), 0, push);
-                mesh.recordDrawCommandInstanced(cmdBuffer, instanceCount);
+                cmdBuffer.bindDescriptorSets(PipelineBindPoint.GRAPHICS, layout, 0, pOut, null);
             }
+
+            push.putLong(mesh.vertexBuffer().deviceAddress());
+            push.putLong(mesh.meshBuffer().deviceAddress());
+            push.putLong(mesh.boundsBuffer().deviceAddress());
+            push.putLong(instanceBuffer.deviceAddress());
+            push.flip();
+
+            cmdBuffer.pushConstants(layout, PlortShaderStage.Stage.ALL.bit(), 0, push);
+            mesh.recordDrawCommandInstanced(cmdBuffer, instanceCount);
         }
     }
 
@@ -348,6 +354,8 @@ public class PlortModel implements AutoCloseable {
     @Override
     public void close() {
         this.closed = true;
+        MemoryUtil.memFree(push);
+        MemoryUtil.memFree(pOut);
         layout.close();
         meshes.forEach(PlortMesh::close);
         textures.forEach(PlortTexture::close);

@@ -108,6 +108,14 @@ public class Quaternionf {
         return this;
     }
 
+    public Quaternionf setFrom(Quat q) {
+        this.x(q.getX());
+        this.y(q.getY());
+        this.z(q.getZ());
+        this.w(q.getW());
+        return this;
+    }
+
     public Quaternionf identity() {
         this.x(0);
         this.y(0);

@@ -2,22 +2,25 @@ package net.flamgop.borked;
 
 import net.flamgop.borked.camera.PlayerController;
 import net.flamgop.borked.camera.ViewHelper;
+import net.flamgop.borked.math.Frustum;
 import net.flamgop.borked.math.Matrix4f;
 import net.flamgop.borked.math.Vector3f;
 import net.flamgop.borked.renderer.PlortRenderContext;
 import net.flamgop.borked.renderer.memory.BufferUsage;
 import net.flamgop.borked.renderer.memory.BufferedObject;
 import net.flamgop.borked.renderer.memory.PlortBuffer;
+import net.flamgop.borked.world.SceneData;
 
 public class ShadowManager implements AutoCloseable {
 
-    private final World world;
+    private SceneData sceneData;
     private final PlayerController controller;
 
     private final BufferedObject<PlortBuffer> sceneShadowViewBuffers;
     private final Matrix4f sceneShadowView = new Matrix4f();
     private final Matrix4f sceneShadowProjection = new Matrix4f();
     private final Vector3f sceneShadowLightPos = new Vector3f();
+    private Frustum sceneShadowFrustum;
 
     private final BufferedObject<PlortBuffer> playerShadowViewBuffers;
     private final Matrix4f playerShadowView = new Matrix4f();
@@ -25,16 +28,21 @@ public class ShadowManager implements AutoCloseable {
     private final Vector3f playerShadowLightPos = new Vector3f(), playerShadowCurrentLightPos = new Vector3f();
     private final float playerShadowLightSmoothSpeed = 0.0005f;
 
-    public ShadowManager(PlortRenderContext context, World world, PlayerController controller) {
-        this.world = world;
+    public ShadowManager(PlortRenderContext context, PlayerController controller) {
         this.controller = controller;
         this.sceneShadowViewBuffers = new BufferedObject<>(PlortBuffer.class, context.swapchain().imageCount(), _ -> new PlortBuffer(PlayerController.VIEW_SIZE, BufferUsage.UNIFORM_BUFFER_BIT, context.allocator()));
         this.playerShadowViewBuffers = new BufferedObject<>(PlortBuffer.class, context.swapchain().imageCount(), _ -> new PlortBuffer(PlayerController.VIEW_SIZE, BufferUsage.UNIFORM_BUFFER_BIT, context.allocator()));
+        updatePlayerShadowValues();
+    }
+
+    public void sceneData(SceneData sceneData) {
+        this.sceneData = sceneData;
+        updateSceneShadowValues();
     }
 
     private void updateSceneShadowValues() {
         Vector3f pos = controller.cameraPosition();
-        sceneShadowLightPos.setFrom(world.lightPos()).add(pos);
+        sceneShadowLightPos.setFrom(sceneData.lightPos()).add(pos);
         sceneShadowView.identity().lookAt(sceneShadowLightPos, pos, new Vector3f(0,1,0));
 
         float orthoHalfSize = 25.0f;
@@ -44,6 +52,12 @@ public class ShadowManager implements AutoCloseable {
                 0.01f, 50f,
                 true
         );
+
+        sceneShadowFrustum = Frustum.fromViewProjectionMatrix(new Matrix4f(sceneShadowProjection).multiply(sceneShadowView));
+    }
+
+    public Frustum sceneShadowFrustum() {
+        return sceneShadowFrustum;
     }
 
     private void updatePlayerShadowValues() {

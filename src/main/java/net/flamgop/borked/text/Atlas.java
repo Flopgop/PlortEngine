@@ -14,14 +14,16 @@ import net.flamgop.borked.renderer.memory.TrackedCloseable;
 import net.flamgop.borked.renderer.image.PlortImage;
 import net.flamgop.borked.renderer.image.PlortSampler;
 import net.flamgop.borked.renderer.memory.*;
-import net.flamgop.borked.text.json.JsonAtlasFile;
-import net.flamgop.borked.text.json.JsonGlyph;
 import net.flamgop.borked.renderer.util.ResourceHelper;
 import net.flamgop.borked.renderer.util.VkUtil;
+import net.flamgop.borked.text.json.JsonAtlasFile;
+import net.flamgop.borked.text.json.JsonBounds;
+import net.flamgop.borked.text.json.JsonGlyph;
 import org.lwjgl.stb.STBImage;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.util.*;
@@ -35,7 +37,6 @@ public class Atlas extends TrackedCloseable {
 
     private final PlortAllocator allocator;
 
-//    private final List<Pair<Character, Glyph>> glyphs = new ArrayList<>();
     private final Char2ObjectMap<Glyph> glyphs = new Char2ObjectOpenHashMap<>();
     private final float spaceWidth, lineHeight;
 
@@ -43,7 +44,7 @@ public class Atlas extends TrackedCloseable {
     private final PlortSampler sampler;
     private final PlortBuffer bakedGlyphData;
 
-    public Atlas(PlortDevice device, PlortAllocator allocator, PlortCommandPool commandPool, String atlasPath) {
+    public Atlas(PlortDevice device, PlortAllocator allocator, PlortCommandPool commandPool, String atlasPath) throws IOException {
         super();
         this.allocator = allocator;
 
@@ -51,14 +52,15 @@ public class Atlas extends TrackedCloseable {
         this.bakedGlyphData = new PlortBuffer(BAKED_GLYPH_SIZE * numGlyphs, BufferUsage.STORAGE_BUFFER_BIT , allocator);
 
         JsonAtlasFile atlasFile = JsonAtlasFile.loadFromResources(atlasPath + ".json");
-        this.spaceWidth = (float) (atlasFile.glyphs.stream().filter(g -> g.unicode == 0x20).findFirst().orElseThrow().advance * atlasFile.atlas.size);
-        this.lineHeight = (float) (atlasFile.metrics.lineHeight * atlasFile.atlas.size);
+
+        this.spaceWidth = (float) (atlasFile.glyphs().stream().filter(g -> g.unicode() == 0x20).findFirst().orElseThrow().advance() * atlasFile.atlas().size());
+        this.lineHeight = (float) (atlasFile.metrics().lineHeight() * atlasFile.atlas().size());
 
         try (MappedMemory memory = bakedGlyphData.map()) {
             int glyphIdx = 0;
             for (int c = 0x20; c < 0xFF; c++) {
                 final int ch = c;
-                Optional<JsonGlyph> maybeGlyph = atlasFile.glyphs.stream().filter(g -> g.unicode == ch).findFirst();
+                Optional<JsonGlyph> maybeGlyph = atlasFile.glyphs().stream().filter(g -> g.unicode() == ch).findFirst();
                 if (maybeGlyph.isEmpty()) {
                     glyphs.put((char)c, new Glyph(new Vector4d(0), new Vector2d(0), new Vector2d(0), glyphIdx++, 0.261, true)); // let's just say this char is a space :3
                     memory.putFloat(0);
@@ -71,10 +73,10 @@ public class Atlas extends TrackedCloseable {
                     memory.putFloat(0);
                     continue;
                 }
-                JsonGlyph glyph = maybeGlyph.get();
+                JsonGlyph jsonGlyph = maybeGlyph.get();
 
-                if (glyph.atlasBounds == null) {
-                    glyphs.put((char) c, new Glyph(new Vector4d(0), new Vector2d(0), new Vector2d(0), glyphIdx++, glyph.advance, true));
+                if (jsonGlyph.atlasBounds().isEmpty()) {
+                    glyphs.put((char) c, new Glyph(new Vector4d(0), new Vector2d(0), new Vector2d(0), glyphIdx++, jsonGlyph.advance(), true));
                     memory.putFloat(0);
                     memory.putFloat(0);
                     memory.putFloat(0);
@@ -86,14 +88,16 @@ public class Atlas extends TrackedCloseable {
                     continue;
                 }
 
-                double atlasW = atlasFile.atlas.width;
-                double atlasH = atlasFile.atlas.height;
-                boolean yOriginBottom = "bottom".equalsIgnoreCase(atlasFile.atlas.yOrigin);
+                JsonBounds atlasBounds = jsonGlyph.atlasBounds().get();
 
-                double leftPx   = glyph.atlasBounds.left;
-                double bottomPx = glyph.atlasBounds.bottom;
-                double rightPx  = glyph.atlasBounds.right;
-                double topPx    = glyph.atlasBounds.top;
+                double atlasW = atlasFile.atlas().width();
+                double atlasH = atlasFile.atlas().height();
+                boolean yOriginBottom = "bottom".equalsIgnoreCase(atlasFile.atlas().yOrigin());
+
+                double leftPx   = atlasBounds.left();
+                double bottomPx = atlasBounds.bottom();
+                double rightPx  = atlasBounds.right();
+                double topPx    = atlasBounds.top();
 
                 double uSize = (rightPx - leftPx) / atlasW;
                 double vSize = (topPx - bottomPx) / atlasH;
@@ -106,12 +110,14 @@ public class Atlas extends TrackedCloseable {
                     v0 = 1.0 - (topPx / atlasH);
                 }
 
+                JsonBounds planeBounds = jsonGlyph.planeBounds().orElseThrow();
+
                 glyphs.put((char) c, new Glyph(
                         new Vector4d(u0, v0, uSize, vSize),
-                        new Vector2d((glyph.planeBounds.right - glyph.planeBounds.left) * atlasFile.atlas.size, (glyph.planeBounds.top - glyph.planeBounds.bottom) * atlasFile.atlas.size),
-                        new Vector2d(glyph.planeBounds.left * atlasFile.atlas.size, glyph.planeBounds.top * atlasFile.atlas.size),
+                        new Vector2d((planeBounds.right() - planeBounds.left()) * atlasFile.atlas().size(), (planeBounds.top() - planeBounds.bottom()) * atlasFile.atlas().size()),
+                        new Vector2d(planeBounds.left() * atlasFile.atlas().size(), planeBounds.top() * atlasFile.atlas().size()),
                         glyphIdx++,
-                        glyph.advance * atlasFile.atlas.size,
+                        jsonGlyph.advance() * atlasFile.atlas().size(),
                         false
                 ));
 
@@ -119,7 +125,7 @@ public class Atlas extends TrackedCloseable {
                 memory.putFloat((float) v0);
                 memory.putFloat((float) uSize);
                 memory.putFloat((float) vSize);
-                memory.putFloat((float) atlasFile.atlas.distanceRange);
+                memory.putFloat((float) atlasFile.atlas().distanceRange());
                 memory.putFloat(0);
                 memory.putFloat(0);
                 memory.putFloat(0);

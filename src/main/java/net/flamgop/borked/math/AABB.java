@@ -9,6 +9,10 @@ public record AABB(Vector3f min, Vector3f max) {
         this(new Vector3f(other.min()), new Vector3f(other.max()));
     }
 
+    public AABB(Arena arena, AABB other) {
+        this(new Vector3f(arena, other.min()), new Vector3f(arena, other.max()));
+    }
+
     public Vector3f size() {
         return new Vector3f(max).subtract(min);
     }

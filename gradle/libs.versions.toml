@@ -9,6 +9,8 @@ fastutil = "8.5.18"
 jolt = "3.5.2"
 snaploader = "1.1.1-stable"
 oshi = "6.9.2"
+gson = "2.13.2"
+dfu = "9.0.19"
 
 [libraries]
 lwjgl-bom = { group = "org.lwjgl", name = "lwjgl-bom", version.ref = "lwjgl" }
@@ -45,6 +47,9 @@ jolt-mac = { module = "com.github.stephengold:jolt-jni-MacOSX64", version.ref = 
 
 snaploader = { module = "io.github.electrostat-lab:snaploader", version.ref = "snaploader" }
 oshi-core = { module = "com.github.oshi:oshi-core", version.ref = "oshi" }
+
+gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
+datafixerupper = { group = "com.mojang", name = "datafixerupper", version.ref = "dfu" }
 
 [bundles]
 snaploader = [ "snaploader", "oshi-core" ]

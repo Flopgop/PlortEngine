@@ -1,4 +1,4 @@
-package net.flamgop.borked;
+package net.flamgop.borked.util;
 
 import net.flamgop.borked.math.Vector3f;
 

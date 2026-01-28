@@ -23,6 +23,7 @@ val lwjglNatives = Pair(
 repositories {
     mavenCentral()
     maven("https://central.sonatype.com/repository/maven-snapshots")
+    maven("https://libraries.minecraft.net")
 }
 
 dependencies {
@@ -49,8 +50,6 @@ dependencies {
     implementation("org.lwjgl:lwjgl-vma:${libs.versions.lwjgl}:$lwjglNatives")
 
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
-    implementation(libs.jackson.core)
-    implementation(libs.jackson.databind)
     implementation(libs.graal.collections)
 
     implementation(libs.slf4j.api)
@@ -71,4 +70,7 @@ dependencies {
         classifier("DebugSp")
     })
     implementation(libs.bundles.snaploader)
+
+    implementation(libs.gson)
+    implementation(libs.datafixerupper)
 }

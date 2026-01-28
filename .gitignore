@@ -7,8 +7,10 @@ build/
 
 ### misc stuffs ###
 hs_err_*.log
+hs_oom_*.jfr
 logs/
 joltjni*
+*.json
 
 ### IntelliJ IDEA ###
 .idea/modules.xml

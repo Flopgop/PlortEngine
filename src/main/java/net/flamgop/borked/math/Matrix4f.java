@@ -118,6 +118,10 @@ public class Matrix4f {
         return new Vector3f(m30(), m31(), m32());
     }
 
+    public Vector3f position(Arena arena) {
+        return new Vector3f(arena, m30(), m31(), m32());
+    }
+
     public Matrix4f perspective(float fov, float aspectRatio, float near, float far, boolean zZeroToOne) {
         float h = (float) Math.tan(fov * 0.5f);
 
@@ -489,9 +493,13 @@ public class Matrix4f {
 
     public Matrix4f rotate(Quaternionf rotation) {
         try (Arena arena = Arena.ofConfined()) {
-            Matrix4f rotationMatrix = new Matrix4f(arena).rotation(rotation);
-            return this.multiply(rotationMatrix);
+            return rotate(arena, rotation);
         }
+    }
+
+    public Matrix4f rotate(Arena arena, Quaternionf rotation) {
+        Matrix4f rotationMatrix = new Matrix4f(arena).rotation(rotation);
+        return this.multiply(rotationMatrix);
     }
 
     public Matrix4f transpose() {
