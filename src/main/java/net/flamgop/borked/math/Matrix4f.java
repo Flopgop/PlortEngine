@@ -1,5 +1,8 @@
 package net.flamgop.borked.math;
 
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+import it.unimi.dsi.fastutil.floats.FloatArrayList;
 import org.jetbrains.annotations.ApiStatus;
 import org.lwjgl.assimp.AIMatrix4x4;
 
@@ -7,9 +10,15 @@ import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.nio.Buffer;
+import java.util.List;
 
 @SuppressWarnings({"UnusedReturnValue", "DuplicatedCode"})
 public class Matrix4f {
+    public static final Codec<Matrix4f> CODEC = RecordCodecBuilder.create(instance ->
+            instance.group(
+                    Codec.list(Codec.FLOAT).fieldOf("values").forGetter(Matrix4f::valuesList)
+            ).apply(instance, Matrix4f::new)
+    );
     public static final int BYTES = 16 * Float.BYTES;
     private static final ValueLayout.OfFloat F32 = ValueLayout.JAVA_FLOAT;
 
@@ -77,6 +86,37 @@ public class Matrix4f {
 
     public Matrix4f(float m00, float m01, float m02, float m03, float m10, float m11, float m12, float m13, float m20, float m21, float m22, float m23, float m30, float m31, float m32, float m33) {
         this(Arena.ofAuto(), m00, m01, m02, m03, m10, m11, m12, m13, m20, m21, m22, m23, m30, m31, m32, m33);
+    }
+
+    public Matrix4f(Arena arena, float[] values) {
+        if (values.length != 16) throw new IllegalArgumentException("Cannot create a matrix from more or less than 16 float values");
+        this(arena, values[0],values[1],values[2],values[3],values[4],values[5],values[6],values[7],values[8],values[9],values[10],values[11],values[12],values[13],values[14],values[15]);
+    }
+
+    public Matrix4f(float[] values) {
+        this(Arena.ofAuto(), values);
+    }
+
+    public Matrix4f(Arena arena, List<Float> values) {
+        if (values.size() != 16) throw new IllegalArgumentException("Cannot create a matrix from more or less than 16 float values");
+        this(arena, values.get(0),values.get(1),values.get(2),values.get(3),values.get(4),values.get(5),values.get(6),values.get(7),values.get(8),values.get(9),values.get(10),values.get(11),values.get(12),values.get(13),values.get(14),values.get(15));
+    }
+
+    public Matrix4f(List<Float> values) {
+        this(Arena.ofAuto(), values);
+    }
+
+    public float[] values() {
+        return new float[] {
+                m00(), m01(), m02(), m03(),
+                m10(), m11(), m12(), m13(),
+                m20(), m21(), m22(), m23(),
+                m30(), m31(), m32(), m33()
+        };
+    }
+
+    public List<Float> valuesList() {
+        return new FloatArrayList(values());
     }
 
     @ApiStatus.Internal // not bounds checked

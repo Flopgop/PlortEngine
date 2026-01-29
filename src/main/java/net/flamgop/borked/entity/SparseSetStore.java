@@ -7,7 +7,6 @@ import it.unimi.dsi.fastutil.ints.IntArrayList;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 
 public class SparseSetStore<T> implements ComponentStore<T> {
     private final Int2IntMap sparse = new Int2IntOpenHashMap();

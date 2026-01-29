@@ -12,9 +12,7 @@ public class EntityManager {
     private final IntArrayList freeIds = new IntArrayList();
     private final Map<Class<?>, ComponentStore<?>> stores = new HashMap<>();
 
-    public EntityManager() {
-
-    }
+    public EntityManager() {}
 
     @SuppressWarnings("unchecked")
     public <T> ComponentStore<T> store(Class<T> type) {
