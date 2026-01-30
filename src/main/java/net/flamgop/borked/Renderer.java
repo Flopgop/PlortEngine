@@ -16,11 +16,14 @@ import net.flamgop.borked.model.PlortModel;
 import net.flamgop.borked.renderer.pipeline.*;
 import net.flamgop.borked.renderer.pipeline.barrier.PlortImageMemoryBarrier;
 import net.flamgop.borked.renderer.renderpass.*;
+import net.flamgop.borked.resource.ResourceIdentifier;
+import net.flamgop.borked.resource.ResourceManager;
 import net.flamgop.borked.text.Atlas;
 import net.flamgop.borked.text.Text;
 import net.flamgop.borked.text.TextRenderer;
 import net.flamgop.borked.renderer.util.ResourceHelper;
 import net.flamgop.borked.util.Colors;
+import net.flamgop.borked.util.ShaderHelper;
 import net.flamgop.borked.world.SceneData;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
@@ -103,7 +106,7 @@ public class Renderer implements AutoCloseable {
     private int currentFrameModInFlight = 0;
 
     // note: while we would create the context, camera controller has buffers in it so we can't.
-    public Renderer(GameState gameState, PlortRenderContext context, PlayerController playerController, EntityManager entityManager, ShadowManager shadowManager) {
+    public Renderer(ResourceManager resourceManager, GameState gameState, PlortRenderContext context, PlayerController playerController, EntityManager entityManager, ShadowManager shadowManager) {
         this.gameState = gameState;
         this.context = context;
         this.playerController = playerController;
@@ -136,10 +139,8 @@ public class Renderer implements AutoCloseable {
         postRenderPass.recreate(context.swapchain().extent().x(), context.swapchain().extent().y());
         postRenderPass.label("Post");
 
-        ByteBuffer postCode = ResourceHelper.loadFromResource("assets/shaders/post/post.spv");
-        this.postModule = new PlortShaderModule(context.device(), postCode);
+        this.postModule = ShaderHelper.load(context.device(), resourceManager, ResourceIdentifier.withDefaultNamespace("shaders/post/post.spv"));
         postModule.label("Post");
-        MemoryUtil.memFree(postCode);
 
         this.postLayout = new PlortDescriptorSetLayout(
                 context.device(),
@@ -192,7 +193,7 @@ public class Renderer implements AutoCloseable {
         mainRenderPass.recreate(context.swapchain().extent().x(), context.swapchain().extent().y());
         mainRenderPass.label("Main");
 
-        gbuffer = new GBuffer(context, mainRenderPass);
+        gbuffer = new GBuffer(resourceManager, context, mainRenderPass);
 
         textRenderer = new TextRenderer(context.device(), context.swapchain(), postRenderPass, context.swapchain().imageCount());
         try {
@@ -227,12 +228,11 @@ public class Renderer implements AutoCloseable {
             mem.putMatrix4f(new Matrix4f().invert());
         }
 
+        // this is a fixed size and the size isn't actually passed so we force load the one from resources
         noiseTexture = ResourceHelper.loadTextureFromResources(context, "assets/textures/noise.png");
 
-        ByteBuffer ssaoCode = ResourceHelper.loadFromResource("assets/shaders/ssao.spv");
-        this.ssaoModule = new PlortShaderModule(context.device(), ssaoCode);
+        this.ssaoModule = ShaderHelper.load(context.device(), resourceManager, ResourceIdentifier.withDefaultNamespace("shaders/ssao.spv"));
         ssaoModule.label("SSAO");
-        MemoryUtil.memFree(ssaoCode);
 
         this.ssaoLayout = new PlortDescriptorSetLayout(
                 context.device(),
@@ -264,10 +264,8 @@ public class Renderer implements AutoCloseable {
             );
         }
 
-        ByteBuffer aabbCode = ResourceHelper.loadFromResource("assets/shaders/aabb.spv");
-        this.aabbModule = new PlortShaderModule(context.device(), aabbCode);
+        this.aabbModule = ShaderHelper.load(context.device(), resourceManager, ResourceIdentifier.withDefaultNamespace("shaders/aabb.spv"));
         aabbModule.label("AABB");
-        MemoryUtil.memFree(aabbCode);
 
         this.aabbLayout = new PlortDescriptorSetLayout(
                 context.device(),

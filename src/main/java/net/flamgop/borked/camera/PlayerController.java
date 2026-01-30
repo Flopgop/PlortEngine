@@ -22,6 +22,8 @@ import net.flamgop.borked.renderer.window.PlortWindow;
 import net.flamgop.borked.renderer.memory.BufferUsage;
 import net.flamgop.borked.renderer.memory.MappedMemory;
 import net.flamgop.borked.renderer.memory.PlortBuffer;
+import net.flamgop.borked.resource.ResourceIdentifier;
+import net.flamgop.borked.resource.ResourceManager;
 import net.flamgop.borked.world.SceneData;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
@@ -87,12 +89,12 @@ public class PlayerController implements AutoCloseable {
     private float lastMouseX, lastMouseY;
     private float cameraYaw, playerYaw, pitch;
 
-    public PlayerController(PhysicsContext physicsContext, PlortRenderContext context, PlortWindow window, float fov, float sensitivity) {
+    public PlayerController(ResourceManager resourceManager, PhysicsContext physicsContext, PlortRenderContext context, PlortWindow window, float fov, float sensitivity) {
         this.input = window.input();
         this.viewBuffers = new BufferedObject<>(PlortBuffer.class, context.swapchain().imageCount(), _ -> new PlortBuffer(VIEW_SIZE, BufferUsage.UNIFORM_BUFFER_BIT, context.allocator()));
         this.fov = fov;
         this.sensitivity = sensitivity;
-        this.model = new PlortModel(context, "player.glb");
+        this.model = new PlortModel(context, resourceManager, new ResourceIdentifier("borked", "model/player.glb"));
         this.descriptorSetPool = new PlortBufferedDescriptorSetPool(context.device(), model.layout(), model.materialCount(), context.swapchain().imageCount());
         this.shadowDescriptorSetPool = new PlortBufferedDescriptorSetPool(context.device(), model.layout(), model.materialCount(), context.swapchain().imageCount());
         this.instanceBuffers = new BufferedObject<>(PlortBuffer.class, context.swapchain().imageCount(), _ -> new PlortBuffer(2 * Matrix4f.BYTES, BufferUsage.STORAGE_BUFFER_BIT, context.allocator()));

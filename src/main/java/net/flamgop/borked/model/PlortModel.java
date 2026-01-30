@@ -16,6 +16,8 @@ import net.flamgop.borked.renderer.memory.PlortAllocator;
 import net.flamgop.borked.renderer.memory.PlortBuffer;
 import net.flamgop.borked.renderer.pipeline.*;
 import net.flamgop.borked.renderer.util.ResourceHelper;
+import net.flamgop.borked.resource.ResourceIdentifier;
+import net.flamgop.borked.resource.ResourceManager;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.assimp.*;
@@ -27,6 +29,8 @@ import org.lwjgl.vulkan.VkWriteDescriptorSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.foreign.Arena;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
@@ -65,7 +69,7 @@ public class PlortModel implements AutoCloseable {
         nullTexture = null;
     }
 
-    public PlortModel(PlortRenderContext engine, String path) {
+    public PlortModel(PlortRenderContext engine, ResourceManager manager, ResourceIdentifier model) {
         if (nullTexture == null) {
             nullTexture = ResourceHelper.loadTextureFromResources(engine, "assets/textures/null.png");
         }
@@ -75,18 +79,33 @@ public class PlortModel implements AutoCloseable {
 
         this.device = engine.device();
 
-        AIScene scene = Assimp.aiImportFile(
-                path,
+        ByteBuffer bytes;
+        try (InputStream stream = manager.open(model)) {
+            bytes = MemoryUtil.memAlloc(stream.available());
+            byte[] chunk = new byte[8192];
+            int read;
+            while ((read = stream.read(chunk)) != -1) {
+                bytes.put(chunk, 0, read);
+            }
+            bytes.flip();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        AIScene scene = Assimp.aiImportFileFromMemory(
+                bytes,
                 Assimp.aiProcess_Triangulate |
                         Assimp.aiProcess_GenSmoothNormals |
                         Assimp.aiProcess_CalcTangentSpace |
                         Assimp.aiProcess_JoinIdenticalVertices |
                         Assimp.aiProcess_ImproveCacheLocality |
                         Assimp.aiProcess_SortByPType |
-                        Assimp.aiProcess_GenBoundingBoxes
+                        Assimp.aiProcess_GenBoundingBoxes,
+                (CharSequence) null
         );
 
-        if (scene == null || scene.mNumMeshes() == 0) throw new RuntimeException("bad model " + path);
+
+        if (scene == null || scene.mNumMeshes() == 0) throw new RuntimeException("bad model " + model);
         AINode rootNode = scene.mRootNode();
         if (rootNode == null) throw new NullPointerException("No nodes in scene");
         if (scene.mMeshes() == null) throw new NullPointerException("No meshes in scene");
@@ -138,6 +157,7 @@ public class PlortModel implements AutoCloseable {
         this.childAABBs = meshes.stream().map(PlortMesh::aabb).toList();
 
         Assimp.aiFreeScene(scene);
+        MemoryUtil.memFree(bytes);
     }
 
     public PlortDescriptorSetLayout layout() {

@@ -13,12 +13,12 @@ import net.flamgop.borked.renderer.memory.SharingMode;
 import net.flamgop.borked.renderer.pipeline.*;
 import net.flamgop.borked.renderer.pipeline.barrier.PlortImageMemoryBarrier;
 import net.flamgop.borked.renderer.renderpass.*;
-import net.flamgop.borked.renderer.util.ResourceHelper;
+import net.flamgop.borked.resource.ResourceIdentifier;
+import net.flamgop.borked.resource.ResourceManager;
+import net.flamgop.borked.util.ShaderHelper;
 import org.lwjgl.system.MemoryStack;
-import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.vulkan.*;
 
-import java.nio.ByteBuffer;
 import java.util.List;
 
 import static org.lwjgl.vulkan.VK10.*;
@@ -37,7 +37,7 @@ public class GBuffer implements AutoCloseable {
     private final PlortImage[] gDepthImages;
     private final PlortRenderPass gbufferRenderPass;
 
-    public GBuffer(PlortRenderContext engine, PlortRenderPass mainRenderPass) {
+    public GBuffer(ResourceManager resourceManager, PlortRenderContext engine, PlortRenderPass mainRenderPass) {
         gPositionImages = new PlortImage[engine.swapchain().imageCount()];
         gNormalImages = new PlortImage[engine.swapchain().imageCount()];
         gAlbedoImages = new PlortImage[engine.swapchain().imageCount()];
@@ -128,10 +128,8 @@ public class GBuffer implements AutoCloseable {
 
         this.gbufferSampler = new PlortSampler(engine.device(), PlortFilter.NEAREST, PlortFilter.NEAREST, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE, PlortSampler.AddressMode.CLAMP_TO_EDGE);
 
-        ByteBuffer gbufferCode = ResourceHelper.loadFromResource("assets/shaders/gbuffer/gbuffer.spv");
-        this.gbufferModule = new PlortShaderModule(engine.device(), gbufferCode);
+        this.gbufferModule = ShaderHelper.load(engine.device(), resourceManager, ResourceIdentifier.withDefaultNamespace("shaders/gbuffer/gbuffer.spv"));
         gbufferModule.label("G-Buffer");
-        MemoryUtil.memFree(gbufferCode);
 
         this.gbufferLayout = new PlortDescriptorSetLayout(
                 engine.device(),

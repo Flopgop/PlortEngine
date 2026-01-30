@@ -42,7 +42,7 @@ public class TextRenderer extends TrackedCloseable {
         );
         this.pool = new PlortBufferedDescriptorSetPool(device, layout, 1, maxFramesInFlight);
         pool.label("Text");
-        ByteBuffer textShader = ResourceHelper.loadFromResource("assets/shaders/text.spv");
+        ByteBuffer textShader = ResourceHelper.loadFromResource("assets/borked/shaders/text.spv");
         this.shaderModule = new PlortShaderModule(device, textShader);
         shaderModule.label("Text Combined");
         MemoryUtil.memFree(textShader);

@@ -16,19 +16,31 @@ import net.flamgop.borked.renderer.PlortRenderContext;
 import net.flamgop.borked.model.PlortModel;
 import net.flamgop.borked.renderer.util.VkUtil;
 import net.flamgop.borked.renderer.window.CursorState;
+import net.flamgop.borked.resource.ResourceIdentifier;
+import net.flamgop.borked.resource.ResourceManager;
 import net.flamgop.borked.util.ECSUtil;
 import net.flamgop.borked.util.JsonUtil;
+import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.nio.file.Path;
+import java.util.Optional;
 
 public class Game {
 
+    private static @Nullable Game INSTANCE = null;
+
+    public static Optional<Game> instance() {
+        return Optional.ofNullable(INSTANCE);
+    }
+
     private static final Path SAVE_PATH = Path.of("./save.json");
     private static final Logger LOGGER = LoggerFactory.getLogger(Game.class);
+
+    private final ResourceManager resourceManager;
 
     private final PlortRenderContext renderContext;
     private final PlayerController playerController;
@@ -44,10 +56,20 @@ public class Game {
     private final GameState state;
 
     public Game() {
+        INSTANCE = this;
         LOGGER.debug("This is a debug string");
         LOGGER.info("This is an info string");
         LOGGER.warn("This is a warning string");
         LOGGER.error("This is an error string");
+        try {
+            this.resourceManager = new ResourceManager(Path.of("assets"));
+            try (InputStream stream = this.resourceManager.open(new ResourceIdentifier("borked", "test.txt"))) {
+                String str = new String(stream.readAllBytes());
+                LOGGER.info("Loaded resource: {}", str);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
 
         this.state = this.loadState();
         this.renderContext = new PlortRenderContext("Game", VkUtil.makeApiVersion(1,0,0,0));
@@ -55,17 +77,17 @@ public class Game {
         this.entityManager = new EntityManager();
         this.physicsSystem = new EntityPhysicsSystem();
 
-        this.playerController = new PlayerController(physicsSystem.context(), renderContext, renderContext.window(), 90, 0.1f);
+        this.playerController = new PlayerController(resourceManager, physicsSystem.context(), renderContext, renderContext.window(), 90, 0.1f);
         this.shadowManager = new ShadowManager(renderContext, playerController);
 
-        cube = new PlortModel(renderContext, "cube.glb");
+        cube = new PlortModel(renderContext, resourceManager, new ResourceIdentifier("borked", "model/cube.glb"));
 
-        this.renderer = new Renderer(state, renderContext, playerController, entityManager, shadowManager);
-        this.renderSystem = new EntityRenderSystem(renderContext, playerController, renderer.gbuffer().renderPass(), renderer.shadowRenderPass());
+        this.renderer = new Renderer(resourceManager, state, renderContext, playerController, entityManager, shadowManager);
+        this.renderSystem = new EntityRenderSystem(resourceManager, renderContext, playerController, renderer.gbuffer().renderPass(), renderer.shadowRenderPass());
         renderer.sceneData(renderSystem.sceneData());
         shadowManager.sceneData(renderSystem.sceneData());
 
-        scene = new PlortModel(renderContext, "test_scene.glb");
+        scene = new PlortModel(renderContext, resourceManager, new ResourceIdentifier("borked", "model/test_scene.glb"));
         int entityId = entityManager.createEntity();
         ComponentStore<Transform> transformStore = entityManager.store(Transform.class);
         ComponentStore<Renderable> renderableStore = entityManager.store(Renderable.class);
@@ -205,5 +227,6 @@ public class Game {
         renderer.close();
 
         renderContext.close();
+        INSTANCE = null;
     }
 }

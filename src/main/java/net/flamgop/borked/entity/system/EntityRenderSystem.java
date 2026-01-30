@@ -20,7 +20,10 @@ import net.flamgop.borked.renderer.memory.*;
 import net.flamgop.borked.renderer.pipeline.*;
 import net.flamgop.borked.renderer.renderpass.PlortRenderPass;
 import net.flamgop.borked.renderer.util.ResourceHelper;
+import net.flamgop.borked.resource.ResourceIdentifier;
+import net.flamgop.borked.resource.ResourceManager;
 import net.flamgop.borked.util.ECSUtil;
+import net.flamgop.borked.util.ShaderHelper;
 import net.flamgop.borked.world.SceneData;
 import org.lwjgl.system.MemoryUtil;
 import org.slf4j.Logger;
@@ -53,13 +56,12 @@ public class EntityRenderSystem implements AutoCloseable {
     private final BufferedObject<PlortBuffer> aabbBuffer;
     private long aabbCount;
 
-    public EntityRenderSystem(PlortRenderContext context, PlayerController playerController, PlortRenderPass renderPass, PlortRenderPass shadowPass) {
+    public EntityRenderSystem(ResourceManager resourceManager, PlortRenderContext context, PlayerController playerController, PlortRenderPass renderPass, PlortRenderPass shadowPass) {
         this.allocator = context.allocator();
         this.playerController = playerController;
-        ByteBuffer meshCode = ResourceHelper.loadFromResource("assets/shaders/mesh.spv");
-        this.meshModule = new PlortShaderModule(context.device(), meshCode);
+
+        this.meshModule = ShaderHelper.load(context.device(), resourceManager, ResourceIdentifier.withDefaultNamespace("shaders/mesh.spv"));
         meshModule.label("Mesh");
-        MemoryUtil.memFree(meshCode);
 
         this.meshLayout = new PlortDescriptorSetLayout(
                 context.device(),
@@ -82,7 +84,7 @@ public class EntityRenderSystem implements AutoCloseable {
                 .blendState(PlortBlendState.disabled())
                 .buildGraphics();
 
-        ByteBuffer shadowCode = ResourceHelper.loadFromResource("assets/shaders/shadow.spv");
+        ByteBuffer shadowCode = ResourceHelper.loadFromResource("assets/borked/shaders/shadow.spv");
         this.shadowModule = new PlortShaderModule(context.device(), shadowCode);
         shadowModule.label("Shadow");
         MemoryUtil.memFree(shadowCode);
