@@ -1,5 +1,6 @@
 plugins {
     id("java")
+    id("idea")
 }
 
 group = "net.flamgop"
@@ -18,6 +19,21 @@ val lwjglNatives = Pair(
         arrayOf("Windows").any { name.startsWith(it) } -> "natives-windows"
         else -> throw Error("Unrecognized or unsupported platform. Please set \"lwjglNatives\" manually")
     }
+}
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(26))
+    }
+}
+
+tasks.withType<JavaCompile> {
+    options.compilerArgs.add("--enable-preview")
+    options.release.set(26)
+}
+
+tasks.withType<JavaExec> {
+    jvmArgs("--enable-preview")
 }
 
 repositories {

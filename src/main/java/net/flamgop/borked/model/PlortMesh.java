@@ -1,8 +1,8 @@
 package net.flamgop.borked.model;
 
-import net.flamgop.borked.math.AABB;
-import net.flamgop.borked.math.Matrix4f;
-import net.flamgop.borked.math.Vector3f;
+import net.flamgop.borked.math.val.AABB;
+import net.flamgop.borked.math.val.Matrix4f;
+import net.flamgop.borked.math.val.Vector3f;
 import net.flamgop.borked.renderer.PlortCommandBuffer;
 import net.flamgop.borked.renderer.memory.*;
 import org.jetbrains.annotations.UnmodifiableView;
@@ -42,7 +42,7 @@ public class PlortMesh extends TrackedCloseable {
 
     public PlortMesh(PlortAllocator allocator, AIMesh mesh, Matrix4f transform) {
         super();
-        Matrix4f normalMatrix = new Matrix4f(transform).invert().transpose();
+        Matrix4f normalMatrix = transform.invert().transpose();
 
         int numVertices = mesh.mNumVertices();
         int numFaces = mesh.mNumFaces();

@@ -1,6 +1,6 @@
 package net.flamgop.borked.renderer.swapchain;
 
-import net.flamgop.borked.math.Vector2i;
+import net.flamgop.borked.math.val.Vector2i;
 import net.flamgop.borked.renderer.PlortDevice;
 import net.flamgop.borked.renderer.memory.TrackedCloseable;
 import net.flamgop.borked.renderer.util.VkUtil;

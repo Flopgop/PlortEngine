@@ -3,9 +3,9 @@ package net.flamgop.borked;
 import net.flamgop.borked.camera.PlayerController;
 import net.flamgop.borked.entity.EntityManager;
 import net.flamgop.borked.entity.system.EntityRenderSystem;
-import net.flamgop.borked.math.Matrix4f;
-import net.flamgop.borked.math.Vector2f;
-import net.flamgop.borked.math.Vector3i;
+import net.flamgop.borked.math.val.Matrix4f;
+import net.flamgop.borked.math.val.Vector2f;
+import net.flamgop.borked.math.val.Vector3i;
 import net.flamgop.borked.renderer.PlortCommandBuffer;
 import net.flamgop.borked.renderer.PlortRenderContext;
 import net.flamgop.borked.renderer.descriptor.*;
@@ -35,7 +35,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.List;
 
 import static org.lwjgl.vulkan.VK10.*;

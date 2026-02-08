@@ -1,7 +1,7 @@
 package net.flamgop.borked.renderer.memory;
 
-import net.flamgop.borked.math.Matrix4f;
-import net.flamgop.borked.math.Vector3f;
+import net.flamgop.borked.math.val.Matrix4f;
+import net.flamgop.borked.math.val.Vector3f;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;

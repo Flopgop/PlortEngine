@@ -1,6 +1,6 @@
 package net.flamgop.borked.text;
 
-import net.flamgop.borked.math.Matrix4f;
+import net.flamgop.borked.math.val.Matrix4f;
 import net.flamgop.borked.renderer.PlortCommandBuffer;
 import net.flamgop.borked.renderer.descriptor.*;
 import net.flamgop.borked.renderer.PlortDevice;
@@ -80,9 +80,9 @@ public class TextRenderer extends TrackedCloseable {
             cmdBuffer.bindPipeline(PipelineBindPoint.GRAPHICS, pipeline);
 
             int glyphCount = (int)(buffer.size() / Atlas.GLYPH_MESHLET_SIZE);
-            Matrix4f projection = new Matrix4f().orthographic(0f, swapchain.extent().x(), 0f, swapchain.extent().y(), -1f, 1f, true);
+            Matrix4f projection = Matrix4f.orthographic(0f, swapchain.extent().x(), 0f, swapchain.extent().y(), -1f, 1f, true);
             ByteBuffer stringData = stack.calloc(STRING_DATA_BYTES);
-            projection.getToBuffer(stringData);
+            projection.getToBuffer(0, stringData);
             stringData.putLong(4 * 4 * Float.BYTES, buffer.deviceAddress());
             stringData.putInt(4 * 4 * Float.BYTES + Long.BYTES, glyphCount);
             stringData.putFloat(4 * 4 * Float.BYTES + Long.BYTES + Integer.BYTES, 0f); // TODO: this is supposed to be an "outline thickness" parameter, but I don't know how to implement it right now

@@ -1,6 +1,6 @@
 package net.flamgop.borked.entity.components;
 
-import net.flamgop.borked.math.Matrix4f;
+import net.flamgop.borked.math.val.Matrix4f;
 import net.flamgop.borked.model.PlortModel;
 import net.flamgop.borked.renderer.PlortDevice;
 import net.flamgop.borked.renderer.descriptor.PlortBufferedDescriptorSetPool;

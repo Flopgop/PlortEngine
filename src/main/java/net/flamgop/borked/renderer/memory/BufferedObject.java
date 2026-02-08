@@ -6,7 +6,6 @@ import java.lang.reflect.Array;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public class BufferedObject<T extends AutoCloseable> implements AutoCloseable, Iterable<T> {
     private final T[] objects;

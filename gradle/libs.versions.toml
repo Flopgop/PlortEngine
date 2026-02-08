@@ -1,7 +1,6 @@
 [versions]
 jetbrains-annotations = "26.0.2-1"
 graal-collections = "25.0.0"
-jackson = "3.0.0"
 lwjgl = "3.4.0"
 slf4j = "2.0.17"
 log4j = "2.25.3"
@@ -25,9 +24,6 @@ lwjgl-par = { group = "org.lwjgl", name = "lwjgl-par" }
 lwjgl-stb = { group = "org.lwjgl", name = "lwjgl-stb" }
 lwjgl-vma = { group = "org.lwjgl", name = "lwjgl-vma" }
 lwjgl-vulkan = { group = "org.lwjgl", name = "lwjgl-vulkan" }
-
-jackson-core = { group = "tools.jackson.core", name = "jackson-core", version.ref = "jackson" }
-jackson-databind = { group = "tools.jackson.core", name = "jackson-databind", version.ref = "jackson" }
 
 graal-collections = { module = "org.graalvm.sdk:collections", version.ref = "graal-collections" }
 

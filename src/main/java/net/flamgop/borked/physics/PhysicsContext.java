@@ -51,8 +51,7 @@ public class PhysicsContext {
 
         this.tempAllocator = new TempAllocatorMalloc();
 
-        int numWorkerThreads = Math.max(Math.min(Runtime.getRuntime().availableProcessors() / 2, 4), 1);
-        this.jobSystem = new JobSystemThreadPool(Jolt.cMaxPhysicsJobs, Jolt.cMaxPhysicsBarriers, numWorkerThreads);
+        this.jobSystem = new JobSystemThreadPool(Jolt.cMaxPhysicsJobs, Jolt.cMaxPhysicsBarriers);
 
         final int numBroadPhaseLayers = 1;
 

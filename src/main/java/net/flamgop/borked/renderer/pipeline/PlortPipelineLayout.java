@@ -49,6 +49,7 @@ public class PlortPipelineLayout extends TrackedCloseable {
     private final PlortDevice device;
     private final long handle;
 
+    @SuppressWarnings("resource")
     public PlortPipelineLayout(PlortDevice device, List<PlortPushConstant> pushConstants, PlortDescriptorSetLayout[] descriptorSetLayouts) {
         super();
         this.device = device;

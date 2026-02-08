@@ -9,6 +9,7 @@ import com.github.stephengold.joltjni.readonly.ConstMotionProperties;
 import com.github.stephengold.joltjni.readonly.QuatArg;
 import com.github.stephengold.joltjni.readonly.Vec3Arg;
 import net.flamgop.borked.math.*;
+import net.flamgop.borked.math.val.*;
 import net.flamgop.borked.physics.Layers;
 import net.flamgop.borked.physics.PhysicsContext;
 import net.flamgop.borked.renderer.PlortCommandBuffer;
@@ -29,8 +30,6 @@ import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.foreign.Arena;
-
 @SuppressWarnings("resource")
 public class PlayerController implements AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(PlayerController.class);
@@ -44,19 +43,19 @@ public class PlayerController implements AutoCloseable {
     private final PlortInput input;
     private final BufferedObject<PlortBuffer> viewBuffers;
 
-    private final Vector3f targetLightPos = new Vector3f();
+    private Vector3f targetLightPos;
 
     private final BufferedObject<PlortBuffer> instanceBuffers;
     private final PlortModel model;
     private final PlortBufferedDescriptorSetPool descriptorSetPool;
     private final PlortBufferedDescriptorSetPool shadowDescriptorSetPool;
 
-    private final Vector3f velocity = new Vector3f(0);
+    private Vector3f velocity = new Vector3f(0);
 
     private final Vector3f up = new Vector3f(0,1,0);
-    private final Vector3f position = new Vector3f(-0.5f,0,-0.5f);
-    private final Matrix4f projection = new Matrix4f();
-    private final Matrix4f view = new Matrix4f();
+    private Vector3f position = new Vector3f(-0.5f,0,-0.5f);
+    private Matrix4f projection = new Matrix4f();
+    private Matrix4f view = new Matrix4f();
 
     private final float fov;
     private final float sensitivity;
@@ -78,12 +77,12 @@ public class PlayerController implements AutoCloseable {
     private final float maxSpeed = 10f;
     private final float airResistance = 4f;
 
-    private final Vector3f currentCameraPos = new Vector3f(); // For smooth interpolation
-    private final Vector3f cameraTargetPos = new Vector3f();
+    private Vector3f currentCameraPos = new Vector3f(); // For smooth interpolation
+    private Vector3f cameraTargetPos = new Vector3f();
     private float currentDistance = 5.0f;
 
     private CameraMode cameraMode = CameraMode.FOLLOWING;
-    private final Vector3f lockedPosition = new Vector3f();
+    private Vector3f lockedPosition = new Vector3f();
 
     private boolean grounded, hasDoubleJumped = false, noclip = false;
     private float lastMouseX, lastMouseY;
@@ -110,9 +109,9 @@ public class PlayerController implements AutoCloseable {
         settings.setInnerBodyLayer(Layers.PLAYER);
         settings.setMass(56);
         settings.setMaxStrength(280);
-        character = new CharacterVirtual(settings, position.toJoltVec3().toRVec3(), new Quaternionf().identity().toJoltQuat(), 0, physicsContext.system());
+        character = new CharacterVirtual(settings, position.toJoltVec3().toRVec3(), new Quaternionf().toJoltQuat(), 0, physicsContext.system());
 
-        Quaternionf rot = new Quaternionf().identity();
+        Quaternionf rot = new Quaternionf();
 
         RVec3 joltPos = position.toJoltVec3().toRVec3();
         QuatArg joltRot = rot.toJoltQuat();
@@ -123,7 +122,6 @@ public class PlayerController implements AutoCloseable {
 
 
         character.setListener(new CustomCharacterContactListener() {
-            private final Vector3f mathVector = new Vector3f();
             @Override
             public void onContactAdded(long characterVa, int bodyId2, int subShapeId2, double contactLocationX, double contactLocationY, double contactLocationZ, float contactNormalX, float contactNormalY, float contactNormalZ, long settingsVa) {
                 if (characterVa != character.va()) throw new IllegalStateException("Our character contact generator somehow generated a contact for a *different* character");
@@ -134,7 +132,7 @@ public class PlayerController implements AutoCloseable {
                     ConstMotionProperties motionProperties = lock.getBody().getMotionProperties();
                     if (motionProperties != null) {
                         float restitution = 0.1f * lock.getBody().getRestitution();
-                        float numerator = -(1 + restitution) * velocity.dot(mathVector.set(contactNormalX, contactNormalY, contactNormalZ));
+                        float numerator = -(1 + restitution) * velocity.dot(new Vector3f(contactNormalX, contactNormalY, contactNormalZ));
                         float j = numerator / (1 / character.getMass() + motionProperties.getInverseMass());
 
                         Vec3 force = new Vec3(contactNormalX, contactNormalY, contactNormalZ);
@@ -159,23 +157,15 @@ public class PlayerController implements AutoCloseable {
     }
 
     public Frustum computeFrustum() {
-        try (Arena arena = Arena.ofConfined()) {
-            return Frustum.fromViewProjectionMatrix(new Matrix4f(arena, projection).multiply(view));
-        }
-    }
-
-    public Frustum computeFrustum(Arena arena) {
-        try (Arena tempArena = Arena.ofConfined()) {
-            return Frustum.fromViewProjectionMatrix(arena, new Matrix4f(tempArena, projection).multiply(view));
-        }
+        return Frustum.fromViewProjectionMatrix(projection.multiply(view));
     }
 
     public Vector3f playerPosition() {
-        return new Vector3f(position);
+        return position;
     }
 
     public Vector3f cameraPosition() {
-        return new Vector3f(currentCameraPos);
+        return currentCameraPos;
     }
 
     public Vector3f cameraForward() {
@@ -191,7 +181,7 @@ public class PlayerController implements AutoCloseable {
     }
 
     public void lockedPosition(Vector3f lockedPosition) {
-        this.lockedPosition.setFrom(lockedPosition);
+        this.lockedPosition = lockedPosition;
     }
 
     public PlortBuffer instanceBuffer(int imageIndex) {
@@ -207,11 +197,11 @@ public class PlayerController implements AutoCloseable {
     }
 
     public Vector3f right() {
-        return new Vector3f(cameraForward()).cross(up).normalize();
+        return cameraForward().cross(up).normalize();
     }
 
     public void resize(int width, int height) {
-        this.projection.identity().perspective((float) Math.toRadians(fov), (float) width / height, 0.001f, 1000.0f, true);
+        this.projection = Matrix4f.perspective((float) Math.toRadians(fov), (float) width / height, 0.001f, 1000.0f, true);
     }
 
     public ConstAaBox aabb() {
@@ -239,16 +229,16 @@ public class PlayerController implements AutoCloseable {
 
     private void move(float deltaTime) {
         Vector3f forward = cameraForwardFlat();
-        Vector3f right = new Vector3f(forward).cross(up).normalize();
+        Vector3f right = forward.cross(up).normalize();
 
         Vector3f wishDir = new Vector3f(0);
-        if (input.keyDown(GLFW.GLFW_KEY_W)) wishDir.add(forward);
-        if (input.keyDown(GLFW.GLFW_KEY_S)) wishDir.subtract(forward);
-        if (input.keyDown(GLFW.GLFW_KEY_A)) wishDir.subtract(right);
-        if (input.keyDown(GLFW.GLFW_KEY_D)) wishDir.add(right);
+        if (input.keyDown(GLFW.GLFW_KEY_W)) wishDir = wishDir.add(forward);
+        if (input.keyDown(GLFW.GLFW_KEY_S)) wishDir = wishDir.subtract(forward);
+        if (input.keyDown(GLFW.GLFW_KEY_A)) wishDir = wishDir.subtract(right);
+        if (input.keyDown(GLFW.GLFW_KEY_D)) wishDir = wishDir.add(right);
 
         if (wishDir.lengthSquared() > 0) {
-            wishDir.normalize();
+            wishDir = wishDir.normalize();
             float targetYaw = (float) Math.toDegrees(Math.atan2(wishDir.x(), wishDir.z()));
             playerYaw = MathUtil.lerpfAngle(playerYaw, targetYaw, 0.005f, deltaTime);
         }
@@ -256,16 +246,19 @@ public class PlayerController implements AutoCloseable {
         float currentFriction = grounded ? friction : airResistance;
         float drag = 1.0f - (currentFriction * deltaTime);
         if (drag < 0) drag = 0;
-        velocity.x(velocity.x() * drag);
-        velocity.z(velocity.z() * drag);
-
-        velocity.x(velocity.x() + wishDir.x() * acceleration * deltaTime);
-        velocity.z(velocity.z() + wishDir.z() * acceleration * deltaTime);
+        velocity = new Vector3f(
+                (velocity.x() * drag) + wishDir.x() * acceleration * deltaTime,
+                velocity.y(),
+                (velocity.z() * drag) + wishDir.z() * acceleration * deltaTime
+        );
 
         float horizSpeed = (float) Math.sqrt(velocity.x() * velocity.x() + velocity.z() * velocity.z());
         if (horizSpeed > maxSpeed) {
-            velocity.x((velocity.x() / horizSpeed) * maxSpeed);
-            velocity.z((velocity.z() / horizSpeed) * maxSpeed);
+            velocity = new Vector3f(
+                    (velocity.x() / horizSpeed) * maxSpeed,
+                    velocity.y(),
+                    (velocity.z() / horizSpeed) * maxSpeed
+            );
         }
 
         if (input.keyPressed(GLFW.GLFW_KEY_F)) {
@@ -274,11 +267,11 @@ public class PlayerController implements AutoCloseable {
 
         if (input.keyPressed(GLFW.GLFW_KEY_SPACE)) {
             if (grounded) {
-                velocity.y(jumpForce);
+                velocity = new Vector3f(velocity.x(), jumpForce, velocity.z());
                 grounded = false;
                 hasDoubleJumped = false;
             } else if (!hasDoubleJumped) {
-                velocity.y(jumpForce);
+                velocity = new Vector3f(velocity.x(), jumpForce, velocity.z());
                 hasDoubleJumped = true;
             }
         }
@@ -289,10 +282,10 @@ public class PlayerController implements AutoCloseable {
         if (grounded) {
             hasDoubleJumped = false;
             if (velocity.y() < 0) {
-                velocity.y(0);
+                velocity = new Vector3f(velocity.x(), 0, velocity.z());
             }
         } else {
-            velocity.y(velocity.y() + gravity * dt);
+            velocity = new Vector3f(velocity.x(), velocity.y() + gravity * dt, velocity.z());
         }
 
         move(dt);
@@ -317,10 +310,10 @@ public class PlayerController implements AutoCloseable {
                     context.tempAllocator()
             );
         } else {
-            character.setPosition(new Vector3f(character.getPosition()).add(new Vector3f(velocity).scale(dt)).toJoltVec3().toRVec3());
+            character.setPosition(new Vector3f(character.getPosition()).add(velocity.scale(dt)).toJoltVec3().toRVec3());
         }
 
-        position.setFrom(character.getPosition());
+        position = new Vector3f(character.getPosition());
     }
 
     private float resolveCameraCollision(PhysicsContext context, Vector3f pivot, Vector3f dirToCamera) {
@@ -328,7 +321,7 @@ public class PlayerController implements AutoCloseable {
         float margin = 0.4f;
 
         RVec3 rayOrigin = pivot.toJoltVec3().toRVec3();
-        Vec3Arg rayDirection = new Vector3f(dirToCamera).scale(maxDist).toJoltVec3();
+        Vec3Arg rayDirection = dirToCamera.scale(maxDist).toJoltVec3();
         RRayCast ray = new RRayCast(rayOrigin, rayDirection);
 
         RayCastResult result = new RayCastResult();
@@ -354,9 +347,9 @@ public class PlayerController implements AutoCloseable {
             Matrix4f transform = new Matrix4f();
 
             float half = (float) Math.toRadians(playerYaw) * 0.5f;
-            transform.rotate(new Quaternionf(0, (float) Math.sin(half), 0, (float) Math.cos(half)));
+            transform = transform.rotate(new Quaternionf(0, (float) Math.sin(half), 0, (float) Math.cos(half)));
 
-            transform.translate(new Vector3f(character.getPosition()).subtract(0,halfHeight,0));
+            transform = transform.translate(new Vector3f(character.getPosition()).subtract(0,halfHeight,0));
 
             mem.putMatrix4f(transform);
             mem.putMatrix4f(transform.invert());
@@ -369,20 +362,20 @@ public class PlayerController implements AutoCloseable {
         }
         physicsStep(physicsContext, deltaTime);
         if (grounded) {
-            targetLightPos.setFrom(sceneData.lightPos());
+            targetLightPos = sceneData.lightPos();
         } else {
-            targetLightPos.set(0, 25f, 0f);
+            targetLightPos = new Vector3f(0, 25f, 0);
         }
 
-        cameraTargetPos.lerp(position, targetFollowSpeed, deltaTime);
+        cameraTargetPos = cameraTargetPos.lerp(position, targetFollowSpeed, deltaTime);
 
-        Vector3f pivot = new Vector3f(cameraTargetPos).add(0, headOffset, 0);
-        Vector3f desiredCameraPos = new Vector3f();
+        Vector3f pivot = cameraTargetPos.add(0, headOffset, 0);
+        Vector3f desiredCameraPos;
 
         if (cameraMode == CameraMode.FOLLOWING) {
             Vector3f dirToCamera = cameraForward().scale(-1);
 
-            Vector3f rayPivot = new Vector3f(position).add(0, headOffset, 0);
+            Vector3f rayPivot = position.add(0, headOffset, 0);
             float targetDist = resolveCameraCollision(physicsContext, rayPivot, dirToCamera);
 
             if (targetDist < currentDistance) {
@@ -391,14 +384,14 @@ public class PlayerController implements AutoCloseable {
                 currentDistance = MathUtil.lerpf(currentDistance, targetDist, smoothSpeed, deltaTime);
             }
 
-            desiredCameraPos.setFrom(dirToCamera).scale(currentDistance).add(pivot);
+            desiredCameraPos = dirToCamera.scale(currentDistance).add(pivot);
         } else {
-            desiredCameraPos.setFrom(lockedPosition);
+            desiredCameraPos = lockedPosition;
         }
 
-        currentCameraPos.lerp(desiredCameraPos, smoothSpeed, deltaTime);
+        currentCameraPos = currentCameraPos.lerp(desiredCameraPos, smoothSpeed, deltaTime);
 
-        view.identity().lookAt(currentCameraPos, pivot, up);
+        view = Matrix4f.lookAt(currentCameraPos, pivot, up);
     }
 
     public void submit(PlortCommandBuffer cmdBuffer, PlortPipelineLayout pipelineLayout, int frame, boolean shadow) {

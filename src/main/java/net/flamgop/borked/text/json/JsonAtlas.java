@@ -4,7 +4,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
 public record JsonAtlas(String type, int distanceRange, int distanceRangeMiddle, double size, int width, int height, String yOrigin) {
-    public static Codec<JsonAtlas> CODEC = RecordCodecBuilder.create(instance ->
+    public static final Codec<JsonAtlas> CODEC = RecordCodecBuilder.create(instance ->
         instance.group(
                 Codec.STRING.fieldOf("type").forGetter(JsonAtlas::type),
                 Codec.INT.fieldOf("distanceRange").forGetter(JsonAtlas::distanceRange),

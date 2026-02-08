@@ -2,8 +2,8 @@ package net.flamgop.borked.model;
 
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
-import net.flamgop.borked.math.AABB;
-import net.flamgop.borked.math.Matrix4f;
+import net.flamgop.borked.math.val.AABB;
+import net.flamgop.borked.math.val.Matrix4f;
 import net.flamgop.borked.renderer.PlortCommandBuffer;
 import net.flamgop.borked.renderer.PlortDevice;
 import net.flamgop.borked.renderer.descriptor.PlortBufferedDescriptorSetPool;
@@ -31,7 +31,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.foreign.Arena;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.nio.LongBuffer;
@@ -316,10 +315,6 @@ public class PlortModel implements AutoCloseable {
 
     public AABB aabb() {
         return new AABB(aabb);
-    }
-
-    public AABB aabb(Arena arena) {
-        return new AABB(arena, aabb);
     }
 
     @SuppressWarnings("resource")

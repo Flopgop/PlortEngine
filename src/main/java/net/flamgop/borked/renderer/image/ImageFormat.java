@@ -194,7 +194,7 @@ public enum ImageFormat {
 
     ;
 
-    ;
+
     final int vkQualifier;
     ImageFormat(int vkQualifier) {
         this.vkQualifier = vkQualifier;

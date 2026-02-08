@@ -1,11 +1,9 @@
 package net.flamgop.borked.renderer.util;
 
 import net.flamgop.borked.renderer.PlortCommandBuffer;
-import net.flamgop.borked.renderer.PlortRenderContext;
 import net.flamgop.borked.renderer.exception.VulkanException;
 import net.flamgop.borked.renderer.image.AspectMask;
 import net.flamgop.borked.renderer.image.PlortImage;
-import net.flamgop.borked.renderer.material.PlortTexture;
 import net.flamgop.borked.renderer.memory.PlortBuffer;
 import net.flamgop.borked.renderer.pipeline.PipelineStage;
 import org.lwjgl.system.MemoryStack;
@@ -29,9 +27,6 @@ import static org.lwjgl.vulkan.KHRVideoEncodeQueue.VK_ERROR_INVALID_VIDEO_STD_PA
 import static org.lwjgl.vulkan.KHRVideoQueue.*;
 import static org.lwjgl.vulkan.NVGLSLShader.VK_ERROR_INVALID_SHADER_NV;
 import static org.lwjgl.vulkan.VK10.*;
-import static org.lwjgl.vulkan.VK10.VK_ACCESS_SHADER_READ_BIT;
-import static org.lwjgl.vulkan.VK10.VK_ACCESS_TRANSFER_WRITE_BIT;
-import static org.lwjgl.vulkan.VK10.vkCmdCopyBufferToImage;
 import static org.lwjgl.vulkan.VK11.VK_ERROR_INVALID_EXTERNAL_HANDLE;
 import static org.lwjgl.vulkan.VK11.VK_ERROR_OUT_OF_POOL_MEMORY;
 import static org.lwjgl.vulkan.VK12.VK_ERROR_FRAGMENTATION;

@@ -95,7 +95,7 @@ public class Game {
         ComponentStore<PhysicsBody> physicsBodyStore = entityManager.store(PhysicsBody.class);
 
         Transform transform = new Transform();
-        transform.transform().translate(playerController.playerPosition().add(0,5,0));
+        transform.transform(transform.transform().translate(playerController.playerPosition().add(0,5,0)));
         RenderInstance renderInstance = new RenderInstance(renderContext.device(), renderContext.allocator(), scene, renderContext.swapchain().imageCount());
         PhysicsBody physicsBody = new PhysicsBody(ECSUtil.createBodiesFromModel(physicsSystem.context(), scene, transform));
         physicsBody.bodies().forEach(b -> b.setUserData(entityId));
@@ -168,9 +168,9 @@ public class Game {
                 ComponentStore<PhysicsBody> physicsBodyStore = entityManager.store(PhysicsBody.class);
 
                 Transform transform = new Transform();
-                transform.transform().translate(playerController.playerPosition().add(0,5,0));
+                transform.transform(transform.transform().translate(playerController.playerPosition().add(0,5,0)));
                 RenderInstance renderInstance = new RenderInstance(renderContext.device(), renderContext.allocator(), cube, renderContext.swapchain().imageCount());
-                PhysicsBody physicsBody = new PhysicsBody(ECSUtil.createBodiesFromModel(physicsSystem.context(), scene, transform));
+                PhysicsBody physicsBody = new PhysicsBody(ECSUtil.createBodiesFromModel(physicsSystem.context(), cube, transform));
                 physicsBody.bodies().forEach(b -> b.setUserData(entityId));
 
                 for (int i = 0; i < renderContext.swapchain().imageCount(); i++) {

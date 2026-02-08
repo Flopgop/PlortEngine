@@ -2,15 +2,14 @@ package net.flamgop.borked.text;
 
 import it.unimi.dsi.fastutil.chars.Char2ObjectMap;
 import it.unimi.dsi.fastutil.chars.Char2ObjectOpenHashMap;
-import net.flamgop.borked.math.Vector2d;
-import net.flamgop.borked.math.Vector3i;
-import net.flamgop.borked.math.Vector4d;
+import net.flamgop.borked.math.val.Vector2d;
+import net.flamgop.borked.math.val.Vector3i;
+import net.flamgop.borked.math.val.Vector4d;
 import net.flamgop.borked.renderer.PlortCommandPool;
 import net.flamgop.borked.renderer.PlortDevice;
 import net.flamgop.borked.renderer.image.ImageFormat;
 import net.flamgop.borked.renderer.image.PlortFilter;
 import net.flamgop.borked.renderer.material.PlortTexture;
-import net.flamgop.borked.renderer.memory.TrackedCloseable;
 import net.flamgop.borked.renderer.image.PlortImage;
 import net.flamgop.borked.renderer.image.PlortSampler;
 import net.flamgop.borked.renderer.memory.*;
@@ -162,9 +161,9 @@ public class Atlas extends TrackedCloseable {
                     VK_IMAGE_ASPECT_COLOR_BIT
             );
 
-            commandPool.transientSubmit(device.graphicsQueue(), 0, (cmd) -> {
-                VkUtil.copyBufferToImage(cmd, stagingBuffer, atlas, x.get(0), y.get(0));
-            });
+            commandPool.transientSubmit(device.graphicsQueue(), 0, (cmd) ->
+                VkUtil.copyBufferToImage(cmd, stagingBuffer, atlas, x.get(0), y.get(0))
+            );
 
             stagingBuffer.close();
 

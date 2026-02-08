@@ -1,6 +1,6 @@
 package net.flamgop.borked;
 
-import net.flamgop.borked.math.Vector3i;
+import net.flamgop.borked.math.val.Vector3i;
 import net.flamgop.borked.renderer.PlortCommandBuffer;
 import net.flamgop.borked.renderer.PlortRenderContext;
 import net.flamgop.borked.renderer.descriptor.PlortBufferedDescriptorSetPool;

@@ -8,8 +8,7 @@ import net.flamgop.borked.entity.components.PhysicsBody;
 import net.flamgop.borked.entity.components.RenderInstance;
 import net.flamgop.borked.entity.components.Renderable;
 import net.flamgop.borked.entity.components.Transform;
-import net.flamgop.borked.math.Matrix4f;
-import net.flamgop.borked.math.Vector3f;
+import net.flamgop.borked.math.val.Vector3f;
 import net.flamgop.borked.model.PlortModel;
 import net.flamgop.borked.renderer.PlortCommandBuffer;
 import net.flamgop.borked.renderer.PlortRenderContext;
@@ -29,7 +28,6 @@ import org.lwjgl.system.MemoryUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.foreign.Arena;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 
@@ -120,21 +118,20 @@ public class EntityRenderSystem implements AutoCloseable {
         }
         PlortBuffer buffer = new PlortBuffer(aabbCount * AABB_SIZE, BufferUsage.STORAGE_BUFFER_BIT, allocator);
         try (MappedMemory mem = buffer.map()) {
-            Vector3f temp = new Vector3f();
             for (int e : bodies) {
                 PhysicsBody body = bodyStore.get(e);
                 body.bodies().forEach(a -> {
                     ConstAaBox aabb = a.getWorldSpaceBounds();
-                    mem.putVector3f(temp.setFrom(aabb.getMin()));
+                    mem.putVector3f(new Vector3f(aabb.getMin()));
                     mem.putFloat(0);
-                    mem.putVector3f(temp.setFrom(aabb.getMax()));
+                    mem.putVector3f(new Vector3f(aabb.getMax()));
                     mem.putFloat(1);
                 });
             }
             if (DRAW_PLAYER_AABB) {
-                mem.putVector3f(temp.setFrom(playerController.aabb().getMin()));
+                mem.putVector3f(new Vector3f(playerController.aabb().getMin()));
                 mem.putFloat(0);
-                mem.putVector3f(temp.setFrom(playerController.aabb().getMax()));
+                mem.putVector3f(new Vector3f(playerController.aabb().getMax()));
                 mem.putFloat(0);
             }
         }
@@ -186,13 +183,10 @@ public class EntityRenderSystem implements AutoCloseable {
     }
 
     private void upload(RenderInstance instance, Transform transform) {
-        try (Arena arena = Arena.ofConfined()) {
-            Matrix4f workingMatrix = new Matrix4f(arena);
-            for (PlortBuffer buffer : instance.buffers()) {
-                try (MappedMemory mem = buffer.map()) {
-                    mem.putMatrix4f(transform.transform());
-                    mem.putMatrix4f(workingMatrix.setFrom(transform.transform()).invert());
-                }
+        for (PlortBuffer buffer : instance.buffers()) {
+            try (MappedMemory mem = buffer.map()) {
+                mem.putMatrix4f(transform.transform());
+                mem.putMatrix4f(transform.transform().invert());
             }
         }
     }

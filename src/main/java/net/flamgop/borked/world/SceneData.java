@@ -1,6 +1,6 @@
 package net.flamgop.borked.world;
 
-import net.flamgop.borked.math.Vector3f;
+import net.flamgop.borked.math.val.Vector3f;
 import net.flamgop.borked.renderer.memory.BufferUsage;
 import net.flamgop.borked.renderer.memory.MappedMemory;
 import net.flamgop.borked.renderer.memory.PlortAllocator;
@@ -12,11 +12,11 @@ public class SceneData implements AutoCloseable {
 
     private final PlortBuffer buffer;
 
-    private final Vector3f lightDir = new Vector3f(-1f).normalize();
-    private final Vector3f lightPos = new Vector3f(0).add(new Vector3f(lightDir).scale(-25.0f));
-    private final Vector3f lightColor = new Vector3f(1.0f, 0.976f, 0.937f);
-    private final Vector3f ambientColor = new Vector3f(0.529411765f, 0.807843137f, 0.921568627f).scale(0.1f);
-    private final Vector3f fogColor = new Vector3f(0f);
+    private Vector3f lightDir = new Vector3f(-1f).normalize();
+    private Vector3f lightPos = new Vector3f(0).add(lightDir.scale(-25.0f));
+    private Vector3f lightColor = new Vector3f(1.0f, 0.976f, 0.937f);
+    private Vector3f ambientColor = new Vector3f(0.529411765f, 0.807843137f, 0.921568627f).scale(0.1f);
+    private Vector3f fogColor = new Vector3f(0f);
     private float lightIntensity = 1f;
     private float fogDensity = 0f;
 
@@ -31,16 +31,16 @@ public class SceneData implements AutoCloseable {
     }
 
     public void lightPos(Vector3f v) {
-        lightPos.setFrom(v);
+        lightPos = v;
     }
 
     public void lightDir(Vector3f v) {
-        lightDir.setFrom(v);
+        lightDir = v;
         dirty = true;
     }
 
     public void lightColor(Vector3f v) {
-        lightColor.setFrom(v);
+        lightColor = v;
         dirty = true;
     }
 
@@ -50,12 +50,12 @@ public class SceneData implements AutoCloseable {
     }
 
     public void ambientColor(Vector3f v) {
-        ambientColor.setFrom(v);
+        ambientColor = v;
         dirty = true;
     }
 
     public void fogColor(Vector3f v) {
-        fogColor.setFrom(v);
+        fogColor = v;
         dirty = true;
     }
 

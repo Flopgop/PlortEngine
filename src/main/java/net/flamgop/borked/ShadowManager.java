@@ -2,9 +2,9 @@ package net.flamgop.borked;
 
 import net.flamgop.borked.camera.PlayerController;
 import net.flamgop.borked.camera.ViewHelper;
-import net.flamgop.borked.math.Frustum;
-import net.flamgop.borked.math.Matrix4f;
-import net.flamgop.borked.math.Vector3f;
+import net.flamgop.borked.math.val.Frustum;
+import net.flamgop.borked.math.val.Matrix4f;
+import net.flamgop.borked.math.val.Vector3f;
 import net.flamgop.borked.renderer.PlortRenderContext;
 import net.flamgop.borked.renderer.memory.BufferUsage;
 import net.flamgop.borked.renderer.memory.BufferedObject;
@@ -17,15 +17,15 @@ public class ShadowManager implements AutoCloseable {
     private final PlayerController controller;
 
     private final BufferedObject<PlortBuffer> sceneShadowViewBuffers;
-    private final Matrix4f sceneShadowView = new Matrix4f();
-    private final Matrix4f sceneShadowProjection = new Matrix4f();
-    private final Vector3f sceneShadowLightPos = new Vector3f();
+    private Matrix4f sceneShadowView;
+    private Matrix4f sceneShadowProjection;
+    private Vector3f sceneShadowLightPos;
     private Frustum sceneShadowFrustum;
 
     private final BufferedObject<PlortBuffer> playerShadowViewBuffers;
-    private final Matrix4f playerShadowView = new Matrix4f();
-    private final Matrix4f playerShadowProjection = new Matrix4f();
-    private final Vector3f playerShadowLightPos = new Vector3f(), playerShadowCurrentLightPos = new Vector3f();
+    private Matrix4f playerShadowView;
+    private Matrix4f playerShadowProjection;
+    private Vector3f playerShadowLightPos, playerShadowCurrentLightPos = new Vector3f();
     private final float playerShadowLightSmoothSpeed = 0.0005f;
 
     public ShadowManager(PlortRenderContext context, PlayerController controller) {
@@ -42,18 +42,18 @@ public class ShadowManager implements AutoCloseable {
 
     private void updateSceneShadowValues() {
         Vector3f pos = controller.cameraPosition();
-        sceneShadowLightPos.setFrom(sceneData.lightPos()).add(pos);
-        sceneShadowView.identity().lookAt(sceneShadowLightPos, pos, new Vector3f(0,1,0));
+        sceneShadowLightPos = sceneData.lightPos().add(pos);
+        sceneShadowView = Matrix4f.lookAt(sceneShadowLightPos, pos, new Vector3f(0,1,0));
 
         float orthoHalfSize = 25.0f;
-        sceneShadowProjection.identity().orthographic(
+        sceneShadowProjection = Matrix4f.orthographic(
                 -orthoHalfSize, orthoHalfSize,
                 -orthoHalfSize, orthoHalfSize,
                 0.01f, 50f,
                 true
         );
 
-        sceneShadowFrustum = Frustum.fromViewProjectionMatrix(new Matrix4f(sceneShadowProjection).multiply(sceneShadowView));
+        sceneShadowFrustum = Frustum.fromViewProjectionMatrix(sceneShadowProjection.multiply(sceneShadowView));
     }
 
     public Frustum sceneShadowFrustum() {
@@ -62,11 +62,11 @@ public class ShadowManager implements AutoCloseable {
 
     private void updatePlayerShadowValues() {
         Vector3f pos = controller.cameraPosition();
-        playerShadowLightPos.setFrom(playerShadowCurrentLightPos).add(pos);
-        playerShadowView.identity().lookAt(playerShadowLightPos, pos, new Vector3f(0,1,0));
+        playerShadowLightPos = playerShadowCurrentLightPos.add(pos);
+        playerShadowView = Matrix4f.lookAt(playerShadowLightPos, pos, new Vector3f(0,1,0));
 
         float orthoHalfSize = 25.0f;
-        playerShadowProjection.identity().orthographic(
+        playerShadowProjection = Matrix4f.orthographic(
                 -orthoHalfSize, orthoHalfSize,
                 -orthoHalfSize, orthoHalfSize,
                 0.01f, 50f,
@@ -75,7 +75,7 @@ public class ShadowManager implements AutoCloseable {
     }
 
     public void update(float dt) {
-        playerShadowCurrentLightPos.lerp(controller.targetLightPos(), playerShadowLightSmoothSpeed, dt);
+        playerShadowCurrentLightPos = playerShadowCurrentLightPos.lerp(controller.targetLightPos(), playerShadowLightSmoothSpeed, dt);
         updateSceneShadowValues();
         updatePlayerShadowValues();
     }

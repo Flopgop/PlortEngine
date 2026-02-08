@@ -1,5 +1,10 @@
 package net.flamgop.borked.math;
 
+import net.flamgop.borked.math.val.AABB;
+import net.flamgop.borked.math.val.Matrix3f;
+import net.flamgop.borked.math.val.Quaternionf;
+import net.flamgop.borked.math.val.Vector3f;
+
 public class MathUtil {
     /// Framerate-independent linear interpolation between two float values.
     /// See [Freya Holmér's video](https://www.youtube.com/watch?v=LSNQuFEDOyQ) about this algorithm.
@@ -52,7 +57,7 @@ public class MathUtil {
     }
 
     public static AABB computeOBBAABB(Vector3f position, Quaternionf rotation, Vector3f halfExtents) {
-        Matrix3f rot = Matrix3f.fromQuaternion(rotation);
+        Matrix3f rot = new Matrix3f().rotation(rotation);
         float worldHalfX = Math.abs(rot.m00() * halfExtents.x()) +
                 Math.abs(rot.m10() * halfExtents.y()) +
                 Math.abs(rot.m20() * halfExtents.z());

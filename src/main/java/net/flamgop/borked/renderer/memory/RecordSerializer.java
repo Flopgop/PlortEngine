@@ -1,6 +1,6 @@
 package net.flamgop.borked.renderer.memory;
 
-import net.flamgop.borked.math.*;
+import net.flamgop.borked.math.val.*;
 
 import java.lang.reflect.RecordComponent;
 import java.util.Map;
