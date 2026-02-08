@@ -5,6 +5,7 @@ import net.flamgop.borked.entity.ComponentStore;
 import net.flamgop.borked.entity.EntityManager;
 import net.flamgop.borked.entity.components.PhysicsBody;
 import net.flamgop.borked.entity.components.Transform;
+import net.flamgop.borked.math.val.Matrix4f;
 import net.flamgop.borked.math.val.Quaternionf;
 import net.flamgop.borked.math.val.Vector3f;
 import net.flamgop.borked.physics.PhysicsContext;
@@ -37,7 +38,7 @@ public class EntityPhysicsSystem {
 
             if (body.dynamic() && body.bodies().getFirst().isActive()) {
                 Body b = body.bodies().getFirst();
-                transform.transform(transform.transform()
+                transform.transform(new Matrix4f()
                         .translate(new Vector3f(b.getPosition()))
                         .rotate(new Quaternionf(b.getRotation().normalized())));
             }

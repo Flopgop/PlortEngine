@@ -12,6 +12,7 @@ import net.flamgop.borked.entity.components.Renderable;
 import net.flamgop.borked.entity.components.Transform;
 import net.flamgop.borked.entity.system.EntityPhysicsSystem;
 import net.flamgop.borked.entity.system.EntityRenderSystem;
+import net.flamgop.borked.math.val.Matrix4f;
 import net.flamgop.borked.renderer.PlortRenderContext;
 import net.flamgop.borked.model.PlortModel;
 import net.flamgop.borked.renderer.util.VkUtil;
@@ -167,8 +168,7 @@ public class Game {
                 ComponentStore<RenderInstance> renderInstanceStore = entityManager.store(RenderInstance.class);
                 ComponentStore<PhysicsBody> physicsBodyStore = entityManager.store(PhysicsBody.class);
 
-                Transform transform = new Transform();
-                transform.transform(transform.transform().translate(playerController.playerPosition().add(0,5,0)));
+                Transform transform = new Transform(new Matrix4f().translate(playerController.playerPosition().add(0,5,0)));
                 RenderInstance renderInstance = new RenderInstance(renderContext.device(), renderContext.allocator(), cube, renderContext.swapchain().imageCount());
                 PhysicsBody physicsBody = new PhysicsBody(ECSUtil.createBodiesFromModel(physicsSystem.context(), cube, transform));
                 physicsBody.bodies().forEach(b -> b.setUserData(entityId));

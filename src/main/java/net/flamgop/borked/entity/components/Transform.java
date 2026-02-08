@@ -10,14 +10,16 @@ public final class Transform {
 //                Matrix4f.CODEC.fieldOf("matrix").forGetter(Transform::transform)
 //            ).apply(instance, Transform::new)
 //    );
-    private Matrix4f transform = new Matrix4f();
+    private Matrix4f transform;
     private boolean dirty = true;
 
     public Transform(Matrix4f values) {
         this.transform = values;
     }
 
-    public Transform() {}
+    public Transform() {
+        this.transform = new Matrix4f();
+    }
 
     public void transform(Matrix4f matrix) {
         dirty = true;
