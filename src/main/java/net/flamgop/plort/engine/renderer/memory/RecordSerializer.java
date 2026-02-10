@@ -1,6 +1,6 @@
 package net.flamgop.plort.engine.renderer.memory;
 
-import net.flamgop.borked.math.val.*;
+import net.flamgop.plort.engine.math.val.*;
 import net.flamgop.plort.engine.math.val.*;
 
 import java.lang.reflect.RecordComponent;

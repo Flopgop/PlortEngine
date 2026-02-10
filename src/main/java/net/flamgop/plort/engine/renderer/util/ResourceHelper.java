@@ -8,7 +8,7 @@ import net.flamgop.plort.engine.renderer.image.PlortFilter;
 import net.flamgop.plort.engine.renderer.image.PlortImage;
 import net.flamgop.plort.engine.renderer.image.PlortSampler;
 import net.flamgop.plort.engine.renderer.material.PlortTexture;
-import net.flamgop.borked.renderer.memory.*;
+import net.flamgop.plort.engine.renderer.memory.*;
 import net.flamgop.plort.engine.renderer.memory.*;
 import org.lwjgl.stb.STBImage;
 import org.lwjgl.system.MemoryStack;

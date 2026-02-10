@@ -2,7 +2,7 @@ package net.flamgop.plort.engine.text;
 
 import net.flamgop.plort.engine.math.val.Matrix4f;
 import net.flamgop.plort.engine.renderer.PlortCommandBuffer;
-import net.flamgop.borked.renderer.descriptor.*;
+import net.flamgop.plort.engine.renderer.descriptor.*;
 import net.flamgop.plort.engine.renderer.PlortDevice;
 import net.flamgop.plort.engine.renderer.descriptor.*;
 import net.flamgop.plort.engine.renderer.image.PlortImage;
@@ -11,7 +11,7 @@ import net.flamgop.plort.engine.renderer.pipeline.*;
 import net.flamgop.plort.engine.renderer.renderpass.PlortRenderPass;
 import net.flamgop.plort.engine.renderer.memory.TrackedCloseable;
 import net.flamgop.plort.engine.renderer.memory.PlortBuffer;
-import net.flamgop.borked.renderer.pipeline.*;
+import net.flamgop.plort.engine.renderer.pipeline.*;
 import net.flamgop.plort.engine.renderer.swapchain.PlortSwapchain;
 import net.flamgop.plort.engine.renderer.util.ResourceHelper;
 import org.lwjgl.system.MemoryStack;
