@@ -4,7 +4,7 @@ import net.flamgop.borked.renderer.memory.PlortBuffer;
 
 import java.util.List;
 
-public record BufferDescriptorWrite(List<PlortBuffer> buffers, PlortDescriptor.Type type, int dstBinding, long dstSet) implements DescriptorWrite {
+public value record BufferDescriptorWrite(List<PlortBuffer> buffers, PlortDescriptor.Type type, int dstBinding, long dstSet) implements DescriptorWrite {
     @Override
     public int count() {
         return buffers.size();

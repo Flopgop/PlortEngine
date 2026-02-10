@@ -1,6 +1,7 @@
 package net.flamgop.borked.entity.system;
 
 import com.github.stephengold.joltjni.readonly.ConstAaBox;
+import net.flamgop.borked.ShadowManager;
 import net.flamgop.borked.camera.PlayerController;
 import net.flamgop.borked.entity.ComponentStore;
 import net.flamgop.borked.entity.EntityManager;
@@ -8,6 +9,8 @@ import net.flamgop.borked.entity.components.PhysicsBody;
 import net.flamgop.borked.entity.components.RenderInstance;
 import net.flamgop.borked.entity.components.Renderable;
 import net.flamgop.borked.entity.components.Transform;
+import net.flamgop.borked.math.val.AABB;
+import net.flamgop.borked.math.val.Frustum;
 import net.flamgop.borked.math.val.Vector3f;
 import net.flamgop.borked.model.PlortModel;
 import net.flamgop.borked.renderer.PlortCommandBuffer;
@@ -46,6 +49,7 @@ public class EntityRenderSystem implements AutoCloseable {
     private final PlortShaderModule shadowModule;
     private final PlortPipelineLayout shadowPipelineLayout;
     private final PlortPipeline shadowPipeline;
+    private final ShadowManager shadowManager;
 
     private final PlayerController playerController;
     private final SceneData sceneData;
@@ -54,9 +58,10 @@ public class EntityRenderSystem implements AutoCloseable {
     private final BufferedObject<PlortBuffer> aabbBuffer;
     private long aabbCount;
 
-    public EntityRenderSystem(ResourceManager resourceManager, PlortRenderContext context, PlayerController playerController, PlortRenderPass renderPass, PlortRenderPass shadowPass) {
+    public EntityRenderSystem(ResourceManager resourceManager, PlortRenderContext context, PlayerController playerController, PlortRenderPass renderPass, PlortRenderPass shadowPass, ShadowManager shadowManager) {
         this.allocator = context.allocator();
         this.playerController = playerController;
+        this.shadowManager = shadowManager;
 
         this.meshModule = ShaderHelper.load(context.device(), resourceManager, ResourceIdentifier.withDefaultNamespace("shaders/mesh.spv"));
         meshModule.label("Mesh");
@@ -104,12 +109,16 @@ public class EntityRenderSystem implements AutoCloseable {
 
     public void recreateAABBBuffer(EntityManager entityManager, int frameMod) {
         ComponentStore<PhysicsBody> bodyStore = entityManager.store(PhysicsBody.class);
+        ComponentStore<Renderable> renderableStore = entityManager.store(Renderable.class);
+        ComponentStore<Transform> transformStore = entityManager.store(Transform.class);
+        Collection<Integer> models = ECSUtil.smallest(renderableStore, transformStore).entities();
         Collection<Integer> bodies = bodyStore.entities();
         aabbCount = 0;
         for (int e : bodies) {
             PhysicsBody body = bodyStore.get(e);
             aabbCount += body.bodies().size();
         }
+        aabbCount *= 2;
         if (DRAW_PLAYER_AABB) aabbCount += 1;
 
         if (aabbCount <= 0) {
@@ -126,6 +135,18 @@ public class EntityRenderSystem implements AutoCloseable {
                     mem.putFloat(0);
                     mem.putVector3f(new Vector3f(aabb.getMax()));
                     mem.putFloat(1);
+                });
+            }
+            for (int e : models) {
+                Renderable renderable = renderableStore.get(e);
+                Transform transform = transformStore.get(e);
+                //noinspection resource
+                renderable.model().childAABBs().forEach(a -> {
+                    AABB aabb = a.translate(transform.transform().position());
+                    mem.putVector3f(aabb.min());
+                    mem.putFloat(0);
+                    mem.putVector3f(aabb.max());
+                    mem.putFloat(2);
                 });
             }
             if (DRAW_PLAYER_AABB) {
@@ -162,6 +183,9 @@ public class EntityRenderSystem implements AutoCloseable {
         ComponentStore<Renderable> renderables = entityManager.store(Renderable.class);
         ComponentStore<RenderInstance> instances = entityManager.store(RenderInstance.class);
 
+        Frustum frustum = playerController.computeFrustum();
+        Frustum shadowFrustum = shadowManager.sceneShadowFrustum();
+
         ComponentStore<?> smaller = ECSUtil.smallest(transforms, renderables, instances);
         for (int e : smaller.entities()) {
             if (!transforms.has(e) || !renderables.has(e) || !instances.has(e)) continue;
@@ -171,8 +195,12 @@ public class EntityRenderSystem implements AutoCloseable {
             RenderInstance instance = instances.get(e);
 
             if (transform.dirty()) upload(instance, transform);
-            if (!shadow) submit(cmdBuffer, renderable.model(), instance, frameInFlight);
-            else submitShadow(cmdBuffer, renderable.model(), instance, frameInFlight);
+
+            if (!shadow) {
+                submit(cmdBuffer, renderable.model(), instance, frameInFlight, frustum, transform.transform().position());
+            } else {
+                submitShadow(cmdBuffer, renderable.model(), instance, frameInFlight, shadowFrustum, transform.transform().position());
+            }
         }
     }
 
@@ -191,12 +219,12 @@ public class EntityRenderSystem implements AutoCloseable {
         }
     }
 
-    private void submit(PlortCommandBuffer cmdBuffer, PlortModel model, RenderInstance instance, int frameInFlight) {
-        model.submit(cmdBuffer, meshPipelineLayout, instance.buffers().get(frameInFlight), instance.descriptorSetPool(), 1, frameInFlight);
+    private void submit(PlortCommandBuffer cmdBuffer, PlortModel model, RenderInstance instance, int frameInFlight, Frustum frustum, Vector3f aabbOffset) {
+        model.submit(cmdBuffer, meshPipelineLayout, instance.buffers().get(frameInFlight), instance.descriptorSetPool(), 1, frameInFlight, frustum, aabbOffset);
     }
 
-    private void submitShadow(PlortCommandBuffer cmdBuffer, PlortModel model, RenderInstance instance, int frameInFlight) {
-        model.submit(cmdBuffer, shadowPipelineLayout, instance.buffers().get(frameInFlight), instance.shadowDescriptorSetPool(), 1, frameInFlight);
+    private void submitShadow(PlortCommandBuffer cmdBuffer, PlortModel model, RenderInstance instance, int frameInFlight, Frustum frustum, Vector3f aabbOffset) {
+        model.submit(cmdBuffer, shadowPipelineLayout, instance.buffers().get(frameInFlight), instance.shadowDescriptorSetPool(), 1, frameInFlight, frustum, aabbOffset);
     }
 
     @Override

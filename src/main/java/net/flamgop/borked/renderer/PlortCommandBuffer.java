@@ -16,6 +16,8 @@ import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
 
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
@@ -82,6 +84,11 @@ public class PlortCommandBuffer implements AutoCloseable {
     public void pushConstants(PlortPipelineLayout layout, int stageFlags, int offset, ByteBuffer values) { // note: while lwjgl VK10 implements other buffers for this method, most push constants are complex enough to need to be made of multiple values and thus should be ByteBuffers. All other buffers can be reinterpreted as ByteBuffers.
         checkBegun();
         vkCmdPushConstants(handle, layout.handle(), stageFlags, offset, values);
+    }
+
+    public void pushConstants(PlortPipelineLayout layout, int stageFlags, int offset, MemorySegment pValues) {
+        checkBegun();
+        nvkCmdPushConstants(handle, layout.handle(), stageFlags, offset, (int) pValues.byteSize(), pValues.address());
     }
 
     public void pushDescriptorSet(PipelineBindPoint bindPoint, PlortPipelineLayout layout, int set, VkWriteDescriptorSet.Buffer writes) {

@@ -3,7 +3,9 @@ package net.flamgop.borked.model;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import net.flamgop.borked.math.val.AABB;
+import net.flamgop.borked.math.val.Frustum;
 import net.flamgop.borked.math.val.Matrix4f;
+import net.flamgop.borked.math.val.Vector3f;
 import net.flamgop.borked.renderer.PlortCommandBuffer;
 import net.flamgop.borked.renderer.PlortDevice;
 import net.flamgop.borked.renderer.descriptor.PlortBufferedDescriptorSetPool;
@@ -31,6 +33,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.foreign.Arena;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.nio.LongBuffer;
@@ -57,7 +60,6 @@ public class PlortModel implements AutoCloseable {
     private final PlortDescriptorSetLayout layout;
     private final List<PlortMaterial> materials = new ArrayList<>();
     private final LongBuffer pOut = MemoryUtil.memCallocLong(1);
-    private final ByteBuffer push = MemoryUtil.memCalloc(4 * Long.BYTES);
 
     private boolean closed = false;
 
@@ -336,24 +338,26 @@ public class PlortModel implements AutoCloseable {
         }
     }
 
-    public void submit(PlortCommandBuffer cmdBuffer, PlortPipelineLayout layout, PlortBuffer instanceBuffer, PlortBufferedDescriptorSetPool descriptorSetPool, int instanceCount, int descriptorSetIndex) {
-        for (PlortMesh mesh : meshes) {
-            int mapping = materialMappings.getOrDefault(mesh, -1);
-            if (mapping != -1) {
-                pOut.put(descriptorSetPool.descriptorSet(descriptorSetIndex, mapping));
-                pOut.flip();
+    public void submit(PlortCommandBuffer cmdBuffer, PlortPipelineLayout layout, PlortBuffer instanceBuffer, PlortBufferedDescriptorSetPool descriptorSetPool, int instanceCount, int descriptorSetIndex, Frustum frustum, Vector3f aabbOffset) {
+        try (Arena arena = Arena.ofConfined()) {
+            for (PlortMesh mesh : meshes) {
+                if (!frustum.contains(mesh.aabb().translate(aabbOffset))) continue;
+                int mapping = materialMappings.getOrDefault(mesh, -1);
+                if (mapping != -1) {
+                    pOut.put(descriptorSetPool.descriptorSet(descriptorSetIndex, mapping));
+                    pOut.flip();
 
-                cmdBuffer.bindDescriptorSets(PipelineBindPoint.GRAPHICS, layout, 0, pOut, null);
+                    cmdBuffer.bindDescriptorSets(PipelineBindPoint.GRAPHICS, layout, 0, pOut, null);
+                }
+
+                cmdBuffer.pushConstants(layout, PlortShaderStage.Stage.ALL.bit(), 0, new MeshPushConstant(
+                        mesh.vertexBuffer(),
+                        mesh.meshBuffer(),
+                        mesh.boundsBuffer(),
+                        instanceBuffer
+                ).toMemorySegment(arena));
+                mesh.recordDrawCommandInstanced(cmdBuffer, instanceCount);
             }
-
-            push.putLong(mesh.vertexBuffer().deviceAddress());
-            push.putLong(mesh.meshBuffer().deviceAddress());
-            push.putLong(mesh.boundsBuffer().deviceAddress());
-            push.putLong(instanceBuffer.deviceAddress());
-            push.flip();
-
-            cmdBuffer.pushConstants(layout, PlortShaderStage.Stage.ALL.bit(), 0, push);
-            mesh.recordDrawCommandInstanced(cmdBuffer, instanceCount);
         }
     }
 
@@ -369,7 +373,6 @@ public class PlortModel implements AutoCloseable {
     @Override
     public void close() {
         this.closed = true;
-        MemoryUtil.memFree(push);
         MemoryUtil.memFree(pOut);
         layout.close();
         meshes.forEach(PlortMesh::close);

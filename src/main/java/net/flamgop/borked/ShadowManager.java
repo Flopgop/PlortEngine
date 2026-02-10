@@ -53,7 +53,7 @@ public class ShadowManager implements AutoCloseable {
                 true
         );
 
-        sceneShadowFrustum = Frustum.fromViewProjectionMatrix(sceneShadowProjection.multiply(sceneShadowView));
+        sceneShadowFrustum = Frustum.fromViewProjectionMatrix(sceneShadowProjection.multiply(sceneShadowView), true);
     }
 
     public Frustum sceneShadowFrustum() {

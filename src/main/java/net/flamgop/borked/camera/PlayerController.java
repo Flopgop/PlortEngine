@@ -157,7 +157,7 @@ public class PlayerController implements AutoCloseable {
     }
 
     public Frustum computeFrustum() {
-        return Frustum.fromViewProjectionMatrix(projection.multiply(view));
+        return Frustum.fromViewProjectionMatrix(projection.multiply(view), true);
     }
 
     public Vector3f playerPosition() {
@@ -395,7 +395,7 @@ public class PlayerController implements AutoCloseable {
     }
 
     public void submit(PlortCommandBuffer cmdBuffer, PlortPipelineLayout pipelineLayout, int frame, boolean shadow) {
-        this.model.submit(cmdBuffer, pipelineLayout, this.instanceBuffers.get(frame), shadow ? shadowDescriptorSetPool : descriptorSetPool, 1, frame);
+        this.model.submit(cmdBuffer, pipelineLayout, this.instanceBuffers.get(frame), shadow ? shadowDescriptorSetPool : descriptorSetPool, 1, frame, this.computeFrustum(), position);
     }
 
     public Vector3f targetLightPos() {

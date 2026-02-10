@@ -87,6 +87,7 @@ struct AABBFragment {
 [shader("fragment")]
 AABBFragment fragmentMain(AABBVertex vert) {
     AABBFragment frag;
-    frag.color = lerp(float4(1, 0, 0, 1), float4(0, 1, 0, 1), vert.has_collision);
+    frag.color = lerp(float4(1, 0, 0, 1), float4(0, 1, 0, 1), float(vert.has_collision == 1));
+    frag.color = lerp(frag.color, float4(0, 0, 1, 1), float(vert.has_collision == 2));
     return frag;
 }

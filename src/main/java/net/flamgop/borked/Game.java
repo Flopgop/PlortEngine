@@ -84,7 +84,7 @@ public class Game {
         cube = new PlortModel(renderContext, resourceManager, new ResourceIdentifier("borked", "model/cube.glb"));
 
         this.renderer = new Renderer(resourceManager, state, renderContext, playerController, entityManager, shadowManager);
-        this.renderSystem = new EntityRenderSystem(resourceManager, renderContext, playerController, renderer.gbuffer().renderPass(), renderer.shadowRenderPass());
+        this.renderSystem = new EntityRenderSystem(resourceManager, renderContext, playerController, renderer.gbuffer().renderPass(), renderer.shadowRenderPass(), shadowManager);
         renderer.sceneData(renderSystem.sceneData());
         shadowManager.sceneData(renderSystem.sceneData());
 
