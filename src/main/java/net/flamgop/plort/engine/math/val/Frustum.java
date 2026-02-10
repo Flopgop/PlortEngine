@@ -1,0 +1,35 @@
+package net.flamgop.plort.engine.math.val;
+
+import org.jetbrains.annotations.Contract;
+
+public value record Frustum(Plane[] planes) {
+    public static final int LEFT = 0, RIGHT = 1, BOTTOM = 2, TOP = 3, NEAR = 4, FAR = 5;
+
+    @Contract(pure = true)
+    public static Frustum fromViewProjectionMatrix(Matrix4f m, boolean zZeroToOne) {
+        Plane[] planes = new Plane[6];
+        planes[LEFT]    = Plane.normalized(m.m03() + m.m00(), m.m13() + m.m10(), m.m23() + m.m20(), m.m33() + m.m30());
+        planes[RIGHT]   = Plane.normalized(m.m03() - m.m00(), m.m13() - m.m10(), m.m23() - m.m20(), m.m33() - m.m30());
+        planes[BOTTOM]  = Plane.normalized(m.m03() + m.m01(), m.m13() + m.m11(), m.m23() + m.m21(), m.m33() + m.m31());
+        planes[TOP]     = Plane.normalized(m.m03() - m.m01(), m.m13() - m.m11(), m.m23() - m.m21(), m.m33() - m.m31());
+        planes[FAR]     = Plane.normalized(m.m03() - m.m02(), m.m13() - m.m12(), m.m23() - m.m22(), m.m33() - m.m32());
+        if (zZeroToOne) planes[NEAR] = Plane.normalized(m.m02(), m.m12(), m.m22(), m.m32());
+        else planes[NEAR] = Plane.normalized(m.m03() + m.m02(), m.m13() + m.m12(), m.m23() + m.m22(), m.m33() + m.m32());
+
+        return new Frustum(planes);
+    }
+
+    @Contract(pure = true)
+    public boolean contains(AABB aabb) {
+        for (Plane plane : planes) {
+            float px = plane.normal().x() > 0 ? aabb.max().x() : aabb.min().x();
+            float py = plane.normal().y() > 0 ? aabb.max().y() : aabb.min().y();
+            float pz = plane.normal().z() > 0 ? aabb.max().z() : aabb.min().z();
+
+            if (plane.distanceToPoint(new Vector3f(px,py,pz)) < 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+}

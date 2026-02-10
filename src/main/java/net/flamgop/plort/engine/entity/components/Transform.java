@@ -1,0 +1,34 @@
+package net.flamgop.plort.engine.entity.components;
+
+import net.flamgop.plort.engine.math.val.Matrix4f;
+
+public final class Transform {
+//    public static final Codec<Transform> CODEC = RecordCodecBuilder.create(instance ->
+//            instance.group(
+//                Matrix4f.CODEC.fieldOf("matrix").forGetter(Transform::transform)
+//            ).apply(instance, Transform::new)
+//    );
+    private Matrix4f transform;
+    private boolean dirty = true;
+
+    public Transform(Matrix4f values) {
+        this.transform = values;
+    }
+
+    public Transform() {
+        this.transform = new Matrix4f();
+    }
+
+    public void transform(Matrix4f matrix) {
+        dirty = true;
+        transform = matrix;
+    }
+
+    public Matrix4f transform() {
+        return transform;
+    }
+
+    public boolean dirty() {
+        return dirty;
+    }
+}

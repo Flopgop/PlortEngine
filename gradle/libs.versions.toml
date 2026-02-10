@@ -16,11 +16,9 @@ lwjgl-bom = { group = "org.lwjgl", name = "lwjgl-bom", version.ref = "lwjgl" }
 
 lwjgl = { group = "org.lwjgl", name = "lwjgl" }
 lwjgl-assimp = { group = "org.lwjgl", name = "lwjgl-assimp" }
-lwjgl-freetype = { group = "org.lwjgl", name = "lwjgl-freetype" }
 lwjgl-glfw = { group = "org.lwjgl", name = "lwjgl-glfw" }
 lwjgl-meshoptimizer = { group = "org.lwjgl", name = "lwjgl-meshoptimizer" }
 lwjgl-msdfgen = { group = "org.lwjgl", name = "lwjgl-msdfgen" }
-lwjgl-par = { group = "org.lwjgl", name = "lwjgl-par" }
 lwjgl-stb = { group = "org.lwjgl", name = "lwjgl-stb" }
 lwjgl-vma = { group = "org.lwjgl", name = "lwjgl-vma" }
 lwjgl-vulkan = { group = "org.lwjgl", name = "lwjgl-vulkan" }
