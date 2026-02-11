@@ -10,16 +10,11 @@ import net.flamgop.plort.engine.renderer.PlortCommandBuffer;
 import net.flamgop.plort.engine.renderer.PlortRenderContext;
 import net.flamgop.plort.engine.renderer.descriptor.*;
 import net.flamgop.plort.engine.renderer.image.*;
-import net.flamgop.plort.engine.renderer.descriptor.*;
-import net.flamgop.plort.engine.renderer.image.*;
 import net.flamgop.plort.engine.renderer.material.PlortTexture;
 import net.flamgop.plort.engine.renderer.memory.*;
 import net.flamgop.plort.engine.model.PlortModel;
 import net.flamgop.plort.engine.renderer.pipeline.*;
-import net.flamgop.plort.engine.renderer.memory.*;
-import net.flamgop.plort.engine.renderer.pipeline.*;
 import net.flamgop.plort.engine.renderer.pipeline.barrier.PlortImageMemoryBarrier;
-import net.flamgop.plort.engine.renderer.renderpass.*;
 import net.flamgop.plort.engine.renderer.renderpass.*;
 import net.flamgop.plort.engine.resource.ResourceIdentifier;
 import net.flamgop.plort.engine.resource.ResourceManager;
@@ -201,7 +196,7 @@ public class Renderer implements AutoCloseable {
 
         textRenderer = new TextRenderer(context.device(), context.swapchain(), postRenderPass, context.swapchain().imageCount());
         try {
-            atlas = new Atlas(context.device(), context.allocator(), context.commandPool(), "assets/fonts/nunito");
+            atlas = new Atlas(context.device(), context.allocator(), context.commandPool(), "assets/borked/fonts/nunito");
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -233,7 +228,7 @@ public class Renderer implements AutoCloseable {
         }
 
         // this is a fixed size and the size isn't actually passed so we force load the one from resources
-        noiseTexture = ResourceHelper.loadTextureFromResources(context, "assets/textures/noise.png");
+        noiseTexture = ResourceHelper.loadTextureFromResources(context, "assets/borked/textures/noise.png");
 
         this.ssaoModule = ShaderHelper.load(context.device(), resourceManager, ResourceIdentifier.withDefaultNamespace("shaders/ssao.spv"));
         ssaoModule.label("SSAO");

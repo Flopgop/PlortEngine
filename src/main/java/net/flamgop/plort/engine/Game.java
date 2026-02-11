@@ -13,6 +13,7 @@ import net.flamgop.plort.engine.entity.components.Transform;
 import net.flamgop.plort.engine.entity.system.EntityPhysicsSystem;
 import net.flamgop.plort.engine.entity.system.EntityRenderSystem;
 import net.flamgop.plort.engine.math.val.Matrix4f;
+import net.flamgop.plort.engine.math.val.Vector3f;
 import net.flamgop.plort.engine.renderer.PlortRenderContext;
 import net.flamgop.plort.engine.model.PlortModel;
 import net.flamgop.plort.engine.renderer.util.VkUtil;
@@ -62,12 +63,9 @@ public class Game {
         LOGGER.info("This is an info string");
         LOGGER.warn("This is a warning string");
         LOGGER.error("This is an error string");
+
         try {
             this.resourceManager = new ResourceManager(Path.of("assets"));
-            try (InputStream stream = this.resourceManager.open(new ResourceIdentifier("borked", "test.txt"))) {
-                String str = new String(stream.readAllBytes());
-                LOGGER.info("Loaded resource: {}", str);
-            }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
