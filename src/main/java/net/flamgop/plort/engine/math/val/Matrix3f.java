@@ -9,6 +9,7 @@ public value record Matrix3f(
 ) {
     public static final int BYTES = 9 * Float.BYTES;
 
+    @Contract(pure = true)
     public Matrix3f() {
         this(
                 1,0,0,
@@ -17,7 +18,7 @@ public value record Matrix3f(
         );
     }
 
-    @Contract(pure = true)
+    @Contract(pure = true, value = "_ -> new")
     public Matrix3f multiply(Matrix3f right) {
         return new Matrix3f(
                 Math.fma(m00, right.m00, Math.fma(m10, right.m01, m20 * right.m02)),
@@ -32,7 +33,7 @@ public value record Matrix3f(
         );
     }
 
-    @Contract(pure = true)
+    @Contract(pure = true, value = "_ -> new")
     public Vector3f transform(Vector3f v) {
         float x = v.x(), y = v.y(), z = v.z();
         return new Vector3f(
@@ -42,13 +43,14 @@ public value record Matrix3f(
         );
     }
 
+    @Contract(pure = true, value = "-> _")
     public float determinant() {
         return m00 * (m11 * m22 - m12 * m21)
                 - m10 * (m01 * m22 - m02 * m21)
                 + m20 * (m01 * m12 - m02 * m11);
     }
 
-    @Contract(pure = true)
+    @Contract(pure = true, value = "-> new")
     public Matrix3f invert() {
         float det = determinant();
 
@@ -68,7 +70,7 @@ public value record Matrix3f(
         );
     }
 
-    @Contract(pure = true)
+    @Contract(pure = true, value = "_ -> new")
     public Matrix3f rotation(Quaternionf q) {
         float w = q.w(), x = q.x(), y = q.y(), z = q.z();
         float x2 = x + x, y2 = y + y, z2 = z + z;
@@ -89,7 +91,7 @@ public value record Matrix3f(
         );
     }
 
-    @Contract(pure = true)
+    @Contract(pure = true, value = "-> new")
     public Matrix3f transpose() {
         return new Matrix3f(
                 m00, m10, m20,

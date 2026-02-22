@@ -13,7 +13,6 @@ import net.flamgop.plort.engine.entity.components.Transform;
 import net.flamgop.plort.engine.entity.system.EntityPhysicsSystem;
 import net.flamgop.plort.engine.entity.system.EntityRenderSystem;
 import net.flamgop.plort.engine.math.val.Matrix4f;
-import net.flamgop.plort.engine.math.val.Vector3f;
 import net.flamgop.plort.engine.renderer.PlortRenderContext;
 import net.flamgop.plort.engine.model.PlortModel;
 import net.flamgop.plort.engine.renderer.util.VkUtil;
@@ -22,6 +21,8 @@ import net.flamgop.plort.engine.resource.ResourceIdentifier;
 import net.flamgop.plort.engine.resource.ResourceManager;
 import net.flamgop.plort.engine.util.ECSUtil;
 import net.flamgop.plort.engine.util.JsonUtil;
+import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
@@ -35,7 +36,8 @@ public class Game {
 
     private static @Nullable Game INSTANCE = null;
 
-    public static Optional<Game> instance() {
+    @Contract(pure = true, value = "-> new")
+    public static @NotNull Optional<Game> instance() {
         return Optional.ofNullable(INSTANCE);
     }
 
@@ -114,6 +116,11 @@ public class Game {
         physicsBodyStore.add(entityId, physicsBody);
     }
 
+    @Contract(pure = true, value = "-> _")
+    public ResourceManager resourceManager() {
+        return resourceManager;
+    }
+
     private GameState loadState() {
         File stateFile = Game.SAVE_PATH.toFile();
         if (!stateFile.exists())
@@ -190,6 +197,7 @@ public class Game {
     }
 
     @SuppressWarnings("ResultOfMethodCallIgnored")
+    @Contract(mutates = "io")
     private static void saveState(GameState state) {
         GameState.CODEC.encodeStart(JsonOps.INSTANCE, state).ifSuccess(e -> {
             try {
@@ -208,6 +216,7 @@ public class Game {
         });
     }
 
+    @Contract(mutates = "this")
     public void cleanup() {
         renderer.waitIdle();
 

@@ -5,7 +5,7 @@ import org.jetbrains.annotations.Contract;
 public value record Frustum(Plane[] planes) {
     public static final int LEFT = 0, RIGHT = 1, BOTTOM = 2, TOP = 3, NEAR = 4, FAR = 5;
 
-    @Contract(pure = true)
+    @Contract(pure = true, value = "_, _ -> new")
     public static Frustum fromViewProjectionMatrix(Matrix4f m, boolean zZeroToOne) {
         Plane[] planes = new Plane[6];
         planes[LEFT]    = Plane.normalized(m.m03() + m.m00(), m.m13() + m.m10(), m.m23() + m.m20(), m.m33() + m.m30());
@@ -19,7 +19,7 @@ public value record Frustum(Plane[] planes) {
         return new Frustum(planes);
     }
 
-    @Contract(pure = true)
+    @Contract(pure = true, value = "_ -> _")
     public boolean contains(AABB aabb) {
         for (Plane plane : planes) {
             float px = plane.normal().x() > 0 ? aabb.max().x() : aabb.min().x();

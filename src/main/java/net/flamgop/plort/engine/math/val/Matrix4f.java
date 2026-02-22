@@ -16,7 +16,7 @@ public value record Matrix4f(
 ) {
     public static final int BYTES = 16 * Float.BYTES;
 
-    @Contract(pure = true)
+    @Contract(pure = true, value = "_, _, _, _, _ -> new")
     public static Matrix4f perspective(float fov, float aspectRatio, float near, float far, boolean zZeroToOne) {
         float h = (float) Math.tan(fov * 0.5f);
         return new Matrix4f(
@@ -27,7 +27,7 @@ public value record Matrix4f(
         );
     }
 
-    @Contract(pure = true)
+    @Contract(pure = true, value = "_, _, _, _, _, _, _ -> new")
     public static Matrix4f orthographic(float left, float right, float bottom, float top, float near, float far, boolean zZeroToOne) {
         return new Matrix4f(
                 2f / (right - left), 0, 0, 0,
@@ -40,7 +40,7 @@ public value record Matrix4f(
         );
     }
 
-    @Contract(pure = true)
+    @Contract(pure = true, value = "_, _, _ -> new")
     public static Matrix4f lookAt(Vector3f position, Vector3f target, Vector3f up) {
         Vector3f dir = position.subtract(target).normalize();
         Vector3f tmpUp;
@@ -61,7 +61,7 @@ public value record Matrix4f(
         );
     }
 
-    @Contract(pure = true)
+    @Contract(pure = true, value = "_ -> new")
     public static Matrix4f fromAssimp(AIMatrix4x4 m) {
         return new Matrix4f(
                 m.a1(), m.b1(), m.c1(), m.d1(),
@@ -81,12 +81,12 @@ public value record Matrix4f(
         );
     }
 
-    @Contract(pure = true)
+    @Contract(pure = true, value = "-> new")
     public Vector3f position() {
         return new Vector3f(m30, m31, m32);
     }
     
-    @Contract(pure = true)
+    @Contract(pure = true, value = "_ -> new")
     public Matrix4f multiply(Matrix4f right) {
         return new Matrix4f(
                 Math.fma(m00, right.m00, Math.fma(m10, right.m01, Math.fma(m20, right.m02, m30 * right.m03))),
@@ -108,7 +108,7 @@ public value record Matrix4f(
         );
     }
 
-    @Contract(pure = true)
+    @Contract(pure = true, value = "_ -> new")
     public Vector4f transform(Vector4f v) {
         float x = v.x(), y = v.y(), z = v.z(), w = v.w();
         return new Vector4f(
@@ -119,7 +119,7 @@ public value record Matrix4f(
         );
     }
 
-    @Contract(pure = true)
+    @Contract(pure = true, value = "_ -> new")
     public Vector3f transform(Vector3f v) {
         float x = v.x(), y = v.y(), z = v.z();
 
@@ -138,7 +138,7 @@ public value record Matrix4f(
         );
     }
 
-    @Contract(pure = true)
+    @Contract(pure = true, value = "_ -> new")
     public Vector3f transformDirection(Vector3f v) {
         float x = v.x(), y = v.y(), z = v.z();
         return new Vector3f(
@@ -148,7 +148,7 @@ public value record Matrix4f(
         );
     }
 
-    @Contract(pure = true)
+    @Contract(pure = true, value = "_ -> new")
     public Matrix4f scale(float scale) {
         return new Matrix4f(
                 m00 * scale, m01 * scale, m02 * scale, m03 * scale,
@@ -158,7 +158,7 @@ public value record Matrix4f(
         );
     }
 
-    @Contract(pure = true)
+    @Contract(pure = true, value = "_ -> new")
     public Matrix4f scale3x3(float scale) {
         return new Matrix4f(
                 m00 * scale, m01 * scale, m02 * scale, m03,
@@ -168,11 +168,12 @@ public value record Matrix4f(
         );
     }
 
+    @Contract(pure = true, value = "-> _")
     public float determinant() {
         return (m00*m11 - m01*m10) * (m22*m33 - m23*m32) - (m00*m12 - m02*m10) * (m21*m33 - m23*m31) + (m00*m13 - m03*m10) * (m21*m32 - m22*m31) + (m01*m12 - m02*m11) * (m20*m33 - m23*m30) - (m01*m13 - m03*m11) * (m20*m32 - m22*m30) + (m02*m13 - m03*m12) * (m20*m31 - m21*m30);
     }
 
-    @Contract(pure = true)
+    @Contract(pure = true, value = "-> new")
     public Matrix4f adjugate() {
         float det00 = m22 * m33 - m32 * m23;
         float det01 = m21 * m33 - m31 * m23;
@@ -213,7 +214,7 @@ public value record Matrix4f(
         );
     }
 
-    @Contract(pure = true)
+    @Contract(pure = true, value = "-> new")
     public Matrix4f invert() {
         float s0 = m00, s1 = m01, s2 = m02, s3 = m03;
         float s4 = m10, s5 = m11, s6 = m12, s7 = m13;
@@ -260,7 +261,7 @@ public value record Matrix4f(
         );
     }
 
-    @Contract(pure = true)
+    @Contract(pure = true, value = "_, _, _ -> new")
     public Matrix4f translation(float x, float y, float z) {
         return new Matrix4f(
                 m00, m01, m02, m03,
@@ -270,7 +271,7 @@ public value record Matrix4f(
         );
     }
 
-    @Contract(pure = true)
+    @Contract(pure = true, value = "_, _, _ -> new")
     public Matrix4f translate(float x, float y, float z) {
         return new Matrix4f(
                 m00, m01, m02, m03,
@@ -280,12 +281,12 @@ public value record Matrix4f(
         );
     }
 
-    @Contract(pure = true)
+    @Contract(pure = true, value = "_ -> new")
     public Matrix4f translate(Vector3f v) {
         return translate(v.x(), v.y(), v.z());
     }
 
-    @Contract(pure = true)
+    @Contract(pure = true, value = "-> new")
     public Quaternionf rotation() {
         float trace = m00 + m11 + m22;
         float x, y, z, w;
@@ -319,7 +320,7 @@ public value record Matrix4f(
         return new Quaternionf(x, y, z, w);
     }
 
-    @Contract(pure = true)
+    @Contract(pure = true, value = "_ -> new")
     public Matrix4f rotation(Quaternionf rotation) {
         float w = rotation.w(), x = rotation.x(), y = rotation.y(), z = rotation.z();
         float w2 = w * w;
@@ -341,13 +342,13 @@ public value record Matrix4f(
         );
     }
 
-    @Contract(pure = true)
+    @Contract(pure = true, value = "_ -> new")
     public Matrix4f rotate(Quaternionf rotation) {
         Matrix4f rotationMatrix = new Matrix4f().rotation(rotation);
         return this.multiply(rotationMatrix);
     }
 
-    @Contract(pure = true)
+    @Contract(pure = true, value = "-> new")
     public Matrix4f transpose() {
         return new Matrix4f(
                 m00, m10, m20, m30,
@@ -357,7 +358,7 @@ public value record Matrix4f(
         );
     }
 
-    @Contract(pure = true)
+    @Contract(mutates = "param2")
     public void getToBuffer(int index, ByteBuffer buffer) {
         buffer.putFloat(index, m00);
         buffer.putFloat(index + Float.BYTES, m01);
@@ -380,7 +381,7 @@ public value record Matrix4f(
         buffer.putFloat(index + 15 * Float.BYTES, m33);
     }
 
-    @Contract(pure = true)
+    @Contract(mutates = "io")
     public void getToAddress(long ptr) {
         MemorySegment segment = MemorySegment.ofAddress(ptr).reinterpret(BYTES);
         segment.set(ValueLayout.JAVA_FLOAT, 0, m00);
